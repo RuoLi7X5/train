@@ -32,6 +32,9 @@ export async function POST(request: Request) {
           role: 'ADMIN',
           displayName: '管理员',
         },
+        include: {
+          class: true,
+        },
       })
       console.log('自动初始化管理员账号: ruoli')
     }
