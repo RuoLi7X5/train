@@ -9,7 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 // Button Component
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'outline' | 'ghost'
+  variant?: 'default' | 'outline' | 'ghost' | 'destructive'
   size?: 'default' | 'sm' | 'lg'
 }
 
@@ -18,6 +18,7 @@ const buttonVariants = {
     default: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm",
     outline: "border border-gray-300 bg-transparent hover:bg-gray-100 text-gray-900",
     ghost: "hover:bg-gray-100 text-gray-700",
+    destructive: "bg-red-500 text-white hover:bg-red-600 shadow-sm",
   },
   size: {
     default: "h-10 px-4 py-2",
