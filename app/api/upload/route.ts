@@ -5,7 +5,8 @@ export const runtime = 'edge';
 
 // 定义 Cloudflare 环境变量接口
 interface CloudflareEnv {
-  MY_BUCKET: R2Bucket;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  MY_BUCKET: any; 
   R2_PUBLIC_URL: string;
 }
 
