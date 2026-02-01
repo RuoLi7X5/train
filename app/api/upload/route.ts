@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server'
-import { writeFile } from 'fs/promises'
-import path from 'path'
 
 export const runtime = 'edge';
 
@@ -13,22 +11,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'No file uploaded' }, { status: 400 })
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    // 在 Edge 环境下无法写入文件系统
+    // 临时解决方案：将图片转换为 Base64 字符串返回
+    // 客户端收到后，将这个 Base64 字符串作为 imageUrl 存储
     
-    // 生成唯一文件名
-    const timestamp = Date.now()
-    const originalName = file.name.replace(/\s/g, '_')
-    const filename = `${timestamp}-${originalName}`
-    
-    // 确保写入 public/uploads 目录
-    const uploadDir = path.join(process.cwd(), 'public/uploads')
-    const filePath = path.join(uploadDir, filename)
-
-    await writeFile(filePath, buffer)
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    const base64 = buffer.toString('base64')
+    const mimeType = file.type || 'image/jpeg'
+    const dataUrl = `data:${mimeType};base64,${base64}`
 
     return NextResponse.json({ 
       success: true, 
-      url: `/uploads/${filename}` 
+      url: dataUrl // 这里返回的是 Base64 数据，前端会把它当做 URL 使用
     })
   } catch (error) {
     console.error('Upload error:', error)
