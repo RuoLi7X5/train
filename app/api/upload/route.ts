@@ -3,6 +3,12 @@ import { getRequestContext } from '@cloudflare/next-on-pages'
 
 export const runtime = 'edge';
 
+// 定义 Cloudflare 环境变量接口
+interface CloudflareEnv {
+  MY_BUCKET: R2Bucket;
+  R2_PUBLIC_URL: string;
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
@@ -13,12 +19,12 @@ export async function POST(request: Request) {
     }
 
     // 尝试获取 Cloudflare R2 Binding
-    let env
+    let env: CloudflareEnv | undefined
     try {
         const ctx = getRequestContext()
-        env = ctx.env
+        env = ctx.env as unknown as CloudflareEnv
     } catch (e) {
-        env = process.env
+        // 本地环境可能没有 ctx
     }
 
     // 如果存在 MY_BUCKET 绑定 (Cloudflare 环境)，则上传到 R2
