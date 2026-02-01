@@ -10,7 +10,7 @@ export function cn(...inputs: ClassValue[]) {
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'default' | 'outline' | 'ghost' | 'destructive'
-  size?: 'default' | 'sm' | 'lg'
+  size?: 'default' | 'sm' | 'lg' | 'icon'
 }
 
 const buttonVariants = {
@@ -24,6 +24,7 @@ const buttonVariants = {
     default: "h-10 px-4 py-2",
     sm: "h-9 rounded-md px-3",
     lg: "h-11 rounded-md px-8",
+    icon: "h-10 w-10",
   },
 }
 
