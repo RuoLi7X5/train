@@ -5,9 +5,12 @@ import { PrismaNeon } from '@prisma/adapter-neon'
 // Cloudflare Workers/Pages 环境下，全局就有 WebSocket，不需要额外引入 ws 库
 // neonConfig.webSocketConstructor = ws // 这一行导致了构建错误
 
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:06L2j3FqsoyRdRUC@db.qavvzqpzjhsogctkntue.supabase.co:5432/postgres"
+const connectionString = process.env.DATABASE_URL;
 
 const prismaClientSingleton = () => {
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is not defined');
+  }
   const pool = new Pool({ connectionString })
   const adapter = new PrismaNeon(pool as any)
   return new PrismaClient({ adapter })
