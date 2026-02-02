@@ -1,10 +1,9 @@
 import { PrismaClient } from '@prisma/client'
 import { Pool, neonConfig } from '@neondatabase/serverless'
 import { PrismaNeon } from '@prisma/adapter-neon'
-import ws from 'ws'
 
-// Cloudflare Workers/Pages 需要配置 WebSocket
-neonConfig.webSocketConstructor = ws
+// Cloudflare Workers/Pages 环境下，全局就有 WebSocket，不需要额外引入 ws 库
+// neonConfig.webSocketConstructor = ws // 这一行导致了构建错误
 
 const connectionString = process.env.DATABASE_URL || "postgresql://postgres:06L2j3FqsoyRdRUC@db.qavvzqpzjhsogctkntue.supabase.co:5432/postgres"
 

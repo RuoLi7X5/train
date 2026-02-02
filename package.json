@@ -21,7 +21,6 @@
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.1.7",
     "@types/bcryptjs": "^2.4.6",
-    "@types/ws": "^8.18.1",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -36,8 +35,7 @@
     "react-tooltip": "^5.30.0",
     "recharts": "^2.15.1",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7",
-    "ws": "^8.19.0"
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",
