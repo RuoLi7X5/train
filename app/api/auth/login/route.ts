@@ -72,9 +72,15 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, user: userWithoutPassword })
   } catch (error) {
-    console.error('Login error:', error)
+    console.error('Login error detail:', error)
+    // 如果是 Error 对象，打印更多信息
+    if (error instanceof Error) {
+      console.error('Error name:', error.name)
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+    }
     return NextResponse.json(
-      { message: '服务器内部错误' },
+      { message: `服务器内部错误: ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     )
   }
