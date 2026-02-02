@@ -22,18 +22,21 @@ const nextConfig: NextConfig = {
         path: false,
         'pg-native': false,
         dns: false,
+        child_process: false,
+        process: false,
+        os: false,
+        string_decoder: false, // 刚刚报错缺少的模块
+        perf_hooks: false,
       };
     }
 
-    // 某些库可能会在服务器端也尝试引用这些模块（虽然在 Edge 上不可用）
-    // 强制 Alias 为 false 可以作为一种更保险的手段
+    // 强制 Alias 为 false
     config.resolve.alias = {
       ...config.resolve.alias,
       'pg-native': false,
     };
 
-    // 针对 pg 库的特定处理，避免它加载 fs 等模块
-    // 这是一个常见的 workaround，用于在 Webpack 环境中打包 pg
+    // 针对 pg 库的特定处理
     config.externals = [...(config.externals || []), 'pg-native'];
 
     return config;
