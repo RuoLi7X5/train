@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "pages:build": "npx prisma generate && npx @cloudflare/next-on-pages",
     "start": "next start",
     "lint": "next lint"
   },
