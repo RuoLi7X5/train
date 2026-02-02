@@ -10,7 +10,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^5.22.0",
+    "@neondatabase/serverless": "^1.0.2",
+    "@prisma/adapter-neon": "^7.3.0",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-avatar": "^1.1.2",
     "@radix-ui/react-dialog": "^1.1.5",
@@ -20,6 +21,7 @@
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.1.7",
     "@types/bcryptjs": "^2.4.6",
+    "@types/ws": "^8.18.1",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -28,19 +30,18 @@
     "jose": "^5.9.6",
     "lucide-react": "^0.474.0",
     "next": "15.1.6",
-    "pg": "^8.18.0",
     "react": "19.0.0",
     "react-activity-calendar": "^2.7.9",
     "react-dom": "19.0.0",
     "react-tooltip": "^5.30.0",
     "recharts": "^2.15.1",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",
     "@types/node": "^20",
-    "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.24",
