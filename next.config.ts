@@ -9,9 +9,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  webpack: (config, { isServer }) => {
-    // 解决 pg 驱动在 Edge Runtime 下的兼容性问题
-    if (!isServer) {
+  webpack: (config, { isServer, nextRuntime }) => {
+    // 针对所有环境（Client, Server, Edge），只要是 Edge Runtime 或者浏览器环境，就 Polyfill 这些模块
+    if (!isServer || nextRuntime === 'edge') {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
@@ -21,14 +21,21 @@ const nextConfig: NextConfig = {
         stream: false,
         path: false,
         'pg-native': false,
+        dns: false,
       };
     }
-    // 即使是 Server 端构建（Edge Runtime），也需要处理这些 Node.js 模块
+
+    // 某些库可能会在服务器端也尝试引用这些模块（虽然在 Edge 上不可用）
+    // 强制 Alias 为 false 可以作为一种更保险的手段
     config.resolve.alias = {
       ...config.resolve.alias,
       'pg-native': false,
     };
-    
+
+    // 针对 pg 库的特定处理，避免它加载 fs 等模块
+    // 这是一个常见的 workaround，用于在 Webpack 环境中打包 pg
+    config.externals = [...(config.externals || []), 'pg-native'];
+
     return config;
   },
 };
