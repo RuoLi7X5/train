@@ -72,15 +72,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, user: userWithoutPassword })
   } catch (error) {
-    console.error('Login error detail:', error)
-    // 如果是 Error 对象，打印更多信息
-    if (error instanceof Error) {
-      console.error('Error name:', error.name)
-      console.error('Error message:', error.message)
-      console.error('Error stack:', error.stack)
+    console.error('Login error raw:', error);
+    
+    let errorMessage = '未知错误';
+    try {
+      errorMessage = JSON.stringify(error, Object.getOwnPropertyNames(error));
+    } catch (e) {
+      errorMessage = String(error);
     }
+
+    console.error('Login error stringified:', errorMessage);
+
     return NextResponse.json(
-      { message: `服务器内部错误: ${error instanceof Error ? error.message : String(error)}` },
+      { message: `服务器内部错误: ${errorMessage}` },
       { status: 500 }
     )
   }
