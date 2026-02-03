@@ -6,12 +6,18 @@ export const runtime = 'edge';
 
 export async function GET() {
   const session = await getSession()
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || (session.user.role !== 'SUPER_ADMIN' && session.user.role !== 'COACH')) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
   try {
+    let whereClause = {}
+    if (session.user.role === 'COACH') {
+      whereClause = { coachId: session.user.id }
+    }
+
     const classes = await prisma.class.findMany({
+      where: whereClause,
       include: {
         _count: {
           select: { students: true }
@@ -27,8 +33,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getSession()
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+  if (!session || session.user.role !== 'COACH') {
+    return NextResponse.json({ message: 'Unauthorized. Only Coaches can create classes.' }, { status: 401 })
   }
 
   try {
@@ -38,7 +44,10 @@ export async function POST(request: Request) {
     }
 
     const newClass = await prisma.class.create({
-      data: { name }
+      data: { 
+        name,
+        coachId: session.user.id
+      }
     })
 
     return NextResponse.json(newClass)

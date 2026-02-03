@@ -32,12 +32,8 @@ export default function LoginPage() {
         throw new Error(data.message || '登录失败')
       }
 
-      // 登录成功，根据角色跳转
-      if (data.user.role === 'ADMIN') {
-        router.push('/dashboard')
-      } else {
-        router.push('/')
-      }
+      // 登录成功，所有角色统一跳转到首页
+      router.push('/')
       router.refresh() // 刷新以更新服务器组件状态
     } catch (err: any) {
       setError(err.message)
@@ -66,10 +62,10 @@ export default function LoginPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-gray-700">用户名</Label>
+              <Label htmlFor="username" className="text-gray-700">账号ID</Label>
               <Input
                 id="username"
-                placeholder="请输入用户名"
+                placeholder="请输入账号ID (如 R000001)"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required

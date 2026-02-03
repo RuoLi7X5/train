@@ -11,8 +11,19 @@ export default async function StudentHomePage() {
   const today = new Date().toISOString().split('T')[0]
 
   // 获取今日题目
-  const problem = await prisma.problem.findUnique({
-    where: { date: today },
+  // 优先展示教练发布的题目，其次是公共题目
+  const problem = await prisma.problem.findFirst({
+    where: {
+      date: today,
+      OR: [
+        { authorId: session.user.coachId },
+        { authorId: null }
+      ]
+    },
+    orderBy: {
+      // 优先显示有 authorId 的 (即教练的)，假设 ID > 0
+      authorId: 'desc'
+    },
     include: {
       _count: { select: { submissions: true } }
     }
@@ -30,11 +41,30 @@ export default async function StudentHomePage() {
     })
   }
 
+  // 获取班级信息
+  let classNameDisplay = null
+  if (session?.user.classId) {
+    const classInfo = await prisma.class.findUnique({
+      where: { id: session.user.classId },
+      select: { name: true }
+    })
+    if (classInfo) {
+      classNameDisplay = classInfo.name
+    }
+  }
+
   return (
     <div className="space-y-8">
       {/* 欢迎语 */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">你好，{session?.user.displayName || session?.user.username} 👋</h1>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          你好，{session?.user.displayName || session?.user.username} 👋
+          {classNameDisplay && (
+            <span className="text-sm font-normal bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+              {classNameDisplay}
+            </span>
+          )}
+        </h1>
         <p className="text-gray-500">坚持每日打卡，积少成多！</p>
       </div>
 

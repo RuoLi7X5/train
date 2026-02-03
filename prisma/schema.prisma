@@ -11,12 +11,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  SUPER_ADMIN
+  COACH
+  STUDENT
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+}
+
 model Class {
   id        Int      @id @default(autoincrement())
-  name      String   @unique
+  name      String   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  students  User[]
+  
+  coachId   Int?     // Optional for migration
+  coach     User?    @relation("CoachClasses", fields: [coachId], references: [id])
+  
+  students  User[]   @relation("StudentClass")
+  problems  Problem[]
+
+  @@unique([name, coachId])
 }
 
 model User {
@@ -24,12 +43,23 @@ model User {
   username    String       @unique
   password    String
   displayName String?
-  role        String       @default("STUDENT") // "ADMIN" or "STUDENT"
+  role        Role         @default(STUDENT)
+  status      UserStatus   @default(ACTIVE)
+  
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   
+  // Student fields
   classId     Int?
-  class       Class?       @relation(fields: [classId], references: [id])
+  class       Class?       @relation("StudentClass", fields: [classId], references: [id])
+  
+  coachId     Int?
+  coach       User?        @relation("CoachStudents", fields: [coachId], references: [id])
+  
+  // Coach fields
+  students    User[]       @relation("CoachStudents")
+  teachingClasses Class[]  @relation("CoachClasses")
+  createdProblems Problem[] @relation("CoachProblems")
   
   submissions Submission[]
   comments    Comment[]
@@ -37,7 +67,7 @@ model User {
 
 model Problem {
   id            Int          @id @default(autoincrement())
-  date          String       @unique // Format: YYYY-MM-DD
+  date          String       // Format: YYYY-MM-DD
   content       String
   imageUrl      String?
   
@@ -48,8 +78,19 @@ model Problem {
 
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  
   submissions   Submission[]
   comments      Comment[]
+
+  // New fields
+  authorId      Int?
+  author        User?        @relation("CoachProblems", fields: [authorId], references: [id])
+
+  classId       Int?
+  class         Class?       @relation(fields: [classId], references: [id])
+
+  // Unique constraint: A coach can only have one problem per day
+  @@unique([date, authorId])
 }
 
 model Submission {

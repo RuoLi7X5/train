@@ -35,15 +35,15 @@ export async function middleware(request: NextRequest) {
 
       // 如果已登录且在登录页，重定向
       if (pathname === '/login') {
-        if (user.role === 'ADMIN') {
+        if (user.role === 'SUPER_ADMIN' || user.role === 'COACH') {
           return NextResponse.redirect(new URL('/dashboard', request.url))
         } else {
           return NextResponse.redirect(new URL('/', request.url))
         }
       }
 
-      // 权限控制：Dashboard 仅限管理员
-      if (pathname.startsWith('/dashboard') && user.role !== 'ADMIN') {
+      // 权限控制：Dashboard 仅限管理员和教练
+      if (pathname.startsWith('/dashboard') && user.role !== 'SUPER_ADMIN' && user.role !== 'COACH') {
         return NextResponse.redirect(new URL('/', request.url))
       }
     }

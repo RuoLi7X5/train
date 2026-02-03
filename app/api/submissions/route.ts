@@ -13,14 +13,20 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const problemId = searchParams.get('problemId')
   const status = searchParams.get('status')
-
-  // 管理员逻辑
-  if (session.user.role === 'ADMIN') {
+  // 管理员和教练逻辑
+  if (session.user.role === 'SUPER_ADMIN' || session.user.role === 'COACH') {
     const where: any = {}
     if (status && status !== 'ALL') where.status = status
     if (problemId) where.problemId = parseInt(problemId)
     
-    // 获取所有提交
+    // 如果是教练，只能看到自己题目下的提交
+    if (session.user.role === 'COACH') {
+      where.problem = {
+        authorId: session.user.id
+      }
+    }
+    
+    // 获取提交
     const submissions = await prisma.submission.findMany({
       where,
       include: { 

@@ -13,12 +13,27 @@ export async function GET() {
   try {
     const where: any = {}
     
-    // 如果是学生，只能看到今天及之前的题目
+    // 如果是学生，只能看到今天及之前的题目，且只能看到自己教练的题目（或旧数据的题目）
     if (session.user.role === 'STUDENT') {
         where.date = {
             lte: new Date().toISOString().split('T')[0]
         }
+        
+        // Filter by coach (allow null for legacy problems)
+        if (session.user.coachId) {
+            where.OR = [
+                { authorId: session.user.coachId },
+                { authorId: null }
+            ]
+        } else {
+             // No coach? Maybe only see legacy/public problems
+             where.authorId = null
+        }
+    } else if (session.user.role === 'COACH') {
+        // Coach sees their own problems
+        where.authorId = session.user.id
     }
+    // Super Admin sees all? Or we can filter. For now let Super Admin see all.
 
     const problems = await prisma.problem.findMany({
       where,
@@ -37,8 +52,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getSession()
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+  if (!session || session.user.role !== 'COACH') {
+    return NextResponse.json({ message: 'Unauthorized. Only Coaches can create problems.' }, { status: 401 })
   }
 
   try {
@@ -48,9 +63,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: '日期和内容必填' }, { status: 400 })
     }
 
-    // 检查日期是否重复
-    const existing = await prisma.problem.findUnique({
-      where: { date }
+    // 检查日期是否重复 (同一教练同一天只能发一题)
+    const existing = await prisma.problem.findFirst({
+      where: { 
+        date,
+        authorId: session.user.id
+      }
     })
 
     if (existing) {
@@ -72,7 +90,8 @@ export async function POST(request: Request) {
         imageUrl,
         answerContent,
         answerImage: answerImageUrl,
-        answerReleaseDate: releaseDate
+        answerReleaseDate: releaseDate,
+        authorId: session.user.id
       }
     })
 

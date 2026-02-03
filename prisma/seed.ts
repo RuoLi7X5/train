@@ -18,8 +18,9 @@ async function main() {
     create: {
       username: 'ruoli',
       password,
-      role: 'ADMIN',
-      displayName: '管理员',
+      role: 'SUPER_ADMIN',
+      status: 'ACTIVE',
+      displayName: '超级管理员',
     },
   })
   

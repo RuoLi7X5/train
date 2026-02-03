@@ -9,7 +9,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession()
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || (session.user.role !== 'SUPER_ADMIN' && session.user.role !== 'COACH')) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
 
@@ -17,6 +17,24 @@ export async function PATCH(
   const { status, feedback } = await request.json()
 
   try {
+    const submissionId = parseInt(id)
+    
+    // Check ownership for Coach
+    if (session.user.role === 'COACH') {
+        const submission = await prisma.submission.findUnique({
+            where: { id: submissionId },
+            include: { problem: true }
+        })
+        
+        if (!submission) {
+            return NextResponse.json({ message: 'Submission not found' }, { status: 404 })
+        }
+        
+        if (submission.problem.authorId !== session.user.id) {
+            return NextResponse.json({ message: 'Forbidden: Can only grade own problems' }, { status: 403 })
+        }
+    }
+
     const submission = await prisma.submission.update({
       where: { id: parseInt(id) },
       data: {

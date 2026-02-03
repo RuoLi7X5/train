@@ -1,13 +1,16 @@
 import Link from 'next/link'
-import { LayoutDashboard, BookOpen, CheckSquare, Users, LogOut } from 'lucide-react'
-import { logout } from '@/lib/auth'
+import { LayoutDashboard, BookOpen, CheckSquare, Users, LogOut, User } from 'lucide-react'
+import { logout, getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const session = await getSession()
+  const isSuperAdmin = session?.user?.role === 'SUPER_ADMIN'
+
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
@@ -18,7 +21,7 @@ export default function DashboardLayout({
             管理后台
           </h1>
         </div>
-        
+
         <nav className="flex-1 p-4 space-y-2">
           <NavLink href="/dashboard" icon={<LayoutDashboard size={20} />}>
             概览统计
@@ -32,9 +35,22 @@ export default function DashboardLayout({
           <NavLink href="/dashboard/classes" icon={<Users size={20} />}>
             班级管理
           </NavLink>
+
+          {isSuperAdmin && (
+            <NavLink href="/dashboard/coaches" icon={<Users size={20} />}>
+              教练管理
+            </NavLink>
+          )}
+
           <NavLink href="/dashboard/students" icon={<Users size={20} />}>
-            学生账号
+            {isSuperAdmin ? '棋手管理' : '学生账号'}
           </NavLink>
+
+          <div className="pt-4 mt-4 border-t border-gray-200">
+            <NavLink href="/profile" icon={<User size={20} />}>
+              个人中心
+            </NavLink>
+          </div>
         </nav>
 
         <div className="p-4 border-t">
@@ -61,8 +77,8 @@ export default function DashboardLayout({
 
 function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Link 
-      href={href} 
+    <Link
+      href={href}
       className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-md transition-colors font-medium"
     >
       {icon}
