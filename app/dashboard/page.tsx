@@ -5,6 +5,9 @@ import Heatmap from '@/components/Heatmap'
 import { getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 
+export const runtime = 'edge'
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   const session = await getSession()
   if (!session) {
@@ -19,41 +22,37 @@ export default async function DashboardPage() {
   let pendingCount = 0
   let statsTitle = "概览统计"
 
-  if (user.role === 'SUPER_ADMIN') {
-    statsTitle = "平台概览 (超级管理员)"
-    // 超级管理员查看全平台数据
-    // 可以额外统计教练数量
-    studentCount = await prisma.user.count({ where: { role: 'STUDENT' } })
-    const coachCount = await prisma.user.count({ where: { role: 'COACH' } })
-    // 这里暂且用 studentCount 字段展示总用户数或者仅仅学生数
-    // 或者我们可以修改 UI 显示教练数
-
-    problemCount = await prisma.problem.count()
-    submissionCount = await prisma.submission.count()
-    pendingCount = await prisma.submission.count({ where: { status: 'PENDING' } })
-  } else if (user.role === 'COACH') {
-    statsTitle = "教学概览"
-    // 教练只看自己的数据
-    studentCount = await prisma.user.count({
-      where: { role: 'STUDENT', coachId: user.id }
-    })
-
-    problemCount = await prisma.problem.count({
-      where: { authorId: user.id }
-    })
-
-    submissionCount = await prisma.submission.count({
-      where: {
-        problem: { authorId: user.id }
-      }
-    })
-
-    pendingCount = await prisma.submission.count({
-      where: {
-        status: 'PENDING',
-        problem: { authorId: user.id }
-      }
-    })
+  try {
+    if (user.role === 'SUPER_ADMIN') {
+        statsTitle = "平台概览 (超级管理员)"
+        // Parallel queries for better performance
+        const [students, problems, submissions, pending] = await Promise.all([
+            prisma.user.count({ where: { role: 'STUDENT' } }),
+            prisma.problem.count(),
+            prisma.submission.count(),
+            prisma.submission.count({ where: { status: 'PENDING' } })
+        ])
+        studentCount = students
+        problemCount = problems
+        submissionCount = submissions
+        pendingCount = pending
+    } else if (user.role === 'COACH') {
+        statsTitle = "教学概览"
+        // Parallel queries
+        const [students, problems, submissions, pending] = await Promise.all([
+            prisma.user.count({ where: { role: 'STUDENT', coachId: user.id } }),
+            prisma.problem.count({ where: { authorId: user.id } }),
+            prisma.submission.count({ where: { problem: { authorId: user.id } } }),
+            prisma.submission.count({ where: { status: 'PENDING', problem: { authorId: user.id } } })
+        ])
+        studentCount = students
+        problemCount = problems
+        submissionCount = submissions
+        pendingCount = pending
+    }
+  } catch (error) {
+    console.error('Dashboard stats error:', error)
+    // Fallback to 0s to prevent crash
   }
 
   return (
