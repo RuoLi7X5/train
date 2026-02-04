@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { LayoutDashboard, BookOpen, CheckSquare, Users, LogOut, User } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CheckSquare, Users, LogOut, User, Home } from 'lucide-react'
 import { logout, getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 
@@ -9,6 +9,11 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const session = await getSession()
+
+  if (!session) {
+    redirect('/api/auth/logout')
+  }
+
   const isSuperAdmin = session?.user?.role === 'SUPER_ADMIN'
 
   return (
@@ -23,6 +28,17 @@ export default async function DashboardLayout({
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
+          {/* 返回首页入口 */}
+          <div className="pb-2 mb-2 border-b border-gray-100">
+            <Link
+              href="/"
+              className="flex items-center gap-3 px-4 py-3 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors font-bold"
+            >
+              <Home size={20} />
+              返回做题首页
+            </Link>
+          </div>
+
           <NavLink href="/dashboard" icon={<LayoutDashboard size={20} />}>
             概览统计
           </NavLink>

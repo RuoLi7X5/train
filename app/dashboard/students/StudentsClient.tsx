@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui'
-import { Plus, User, Loader2, Check, X, KeyRound, UserMinus, Search, UserPlus } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui'
+import { Plus, User, Loader2, Check, X, KeyRound, UserMinus, Search, UserPlus, MoreHorizontal, CheckCircle, Ban, Trash2 } from 'lucide-react'
 
 type UserData = {
   id: number
@@ -214,6 +214,46 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
     }
   }
 
+  const handleUpdateStatus = async (user: UserData, newStatus: string) => {
+    if (!confirm(`确定要${newStatus === 'DISABLED' ? '禁用' : '激活'}用户 ${user.username} 吗？`)) return
+
+    try {
+      const res = await fetch(`/api/users/${user.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+      if (res.ok) {
+        alert('操作成功')
+        fetchUsers()
+      } else {
+        const data = await res.json()
+        alert(data.message || '操作失败')
+      }
+    } catch (error) {
+      alert('操作失败')
+    }
+  }
+
+  const handleDeleteStudent = async (user: UserData) => {
+    if (!confirm(`警告：确定要彻底删除学生 ${user.username} 吗？此操作不可逆！\n\n如果该账号有做题记录，删除可能会失败。建议先禁用或移除。`)) return
+
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        alert('删除成功')
+        fetchUsers()
+      } else {
+        const data = await res.json()
+        alert(data.error || '删除失败')
+      }
+    } catch (error) {
+      alert('删除失败')
+    }
+  }
+
   const pageTitle = isSuperAdmin ? '教练账号生成' : '学生账号管理'
   const addButtonText = '批量生成账号'
 
@@ -416,26 +456,78 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
                           )}
                         </td>
                         <td className="px-4 py-3">{user._count.submissions}</td>
-                        <td className="px-4 py-3 flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedUser(user)
-                              setIsResetDialogOpen(true)
-                            }}
-                          >
-                            <KeyRound className="w-4 h-4" />
-                          </Button>
-                          {isCoach && (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleUnbind(user)}
-                            >
-                              <UserMinus className="w-4 h-4" />
-                            </Button>
-                          )}
+                        <td className="px-4 py-3 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">打开菜单</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(user)
+                                  setIsResetDialogOpen(true)
+                                }}
+                              >
+                                <KeyRound className="mr-2 h-4 w-4" />
+                                <span>重置密码</span>
+                              </DropdownMenuItem>
+
+                              {isCoach && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => handleUnbind(user)}
+                                    className="text-gray-600"
+                                  >
+                                    <UserMinus className="mr-2 h-4 w-4" />
+                                    <span>移除 (解绑)</span>
+                                  </DropdownMenuItem>
+
+                                  {user.status === 'PENDING' && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleUpdateStatus(user, 'ACTIVE')}
+                                      className="text-green-600"
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      <span>激活账号</span>
+                                    </DropdownMenuItem>
+                                  )}
+
+                                  {user.status === 'ACTIVE' && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleUpdateStatus(user, 'DISABLED')}
+                                      className="text-orange-600"
+                                    >
+                                      <Ban className="mr-2 h-4 w-4" />
+                                      <span>禁用账号</span>
+                                    </DropdownMenuItem>
+                                  )}
+
+                                  {user.status === 'DISABLED' && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleUpdateStatus(user, 'ACTIVE')}
+                                      className="text-green-600"
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      <span>启用账号</span>
+                                    </DropdownMenuItem>
+                                  )}
+
+                                  {isSuperAdmin && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleDeleteStudent(user)}
+                                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      <span>删除账号</span>
+                                    </DropdownMenuItem>
+                                  )}
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       </tr>
                     ))}

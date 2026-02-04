@@ -25,18 +25,30 @@ export default async function DashboardPage() {
   try {
     if (user.role === 'SUPER_ADMIN') {
       statsTitle = "平台概览 (超级管理员)"
-      // Sequential queries to avoid "Connection closed" error in Edge Runtime
-      studentCount = await prisma.user.count({ where: { role: 'STUDENT' } })
-      problemCount = await prisma.problem.count()
-      submissionCount = await prisma.submission.count()
-      pendingCount = await prisma.submission.count({ where: { status: 'PENDING' } })
+      // Parallel queries restored with pool configuration optimized
+      const [students, problems, submissions, pending] = await Promise.all([
+        prisma.user.count({ where: { role: 'STUDENT' } }),
+        prisma.problem.count(),
+        prisma.submission.count(),
+        prisma.submission.count({ where: { status: 'PENDING' } })
+      ])
+      studentCount = students
+      problemCount = problems
+      submissionCount = submissions
+      pendingCount = pending
     } else if (user.role === 'COACH') {
       statsTitle = "教学概览"
-      // Sequential queries
-      studentCount = await prisma.user.count({ where: { role: 'STUDENT', coachId: user.id } })
-      problemCount = await prisma.problem.count({ where: { authorId: user.id } })
-      submissionCount = await prisma.submission.count({ where: { problem: { authorId: user.id } } })
-      pendingCount = await prisma.submission.count({ where: { status: 'PENDING', problem: { authorId: user.id } } })
+      // Parallel queries restored
+      const [students, problems, submissions, pending] = await Promise.all([
+        prisma.user.count({ where: { role: 'STUDENT', coachId: user.id } }),
+        prisma.problem.count({ where: { authorId: user.id } }),
+        prisma.submission.count({ where: { problem: { authorId: user.id } } }),
+        prisma.submission.count({ where: { status: 'PENDING', problem: { authorId: user.id } } })
+      ])
+      studentCount = students
+      problemCount = problems
+      submissionCount = submissions
+      pendingCount = pending
     }
   } catch (error) {
     console.error('Dashboard stats error:', error)

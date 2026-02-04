@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
+import prisma from '@/lib/prisma'
 
 const secretKey = 'secret-key-replace-in-production' // In a real app, use process.env.JWT_SECRET
 const key = new TextEncoder().encode(secretKey)
@@ -43,5 +44,29 @@ export async function getSession() {
   const cookieStore = await cookies()
   const session = cookieStore.get('session')?.value
   if (!session) return null
-  return await decrypt(session)
+  
+  const payload = await decrypt(session)
+  if (!payload || !payload.user?.id) return null
+
+  // Double check status from database to support immediate ban/disable
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: payload.user.id },
+      select: { status: true, role: true }
+    })
+
+    if (!user || user.status === 'DISABLED') {
+      return null
+    }
+    
+    // Optional: Refresh role in session if changed? 
+    // For now, just validation is enough.
+  } catch (error) {
+    console.error('Session validation error:', error)
+    // If DB fails, we might want to fail safe or allow? 
+    // Failing safe (return null) is better for security.
+    return null
+  }
+
+  return payload
 }

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui'
-import { Plus, User, Loader2, KeyRound, Ban, CheckCircle, Trash2 } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui'
+import { Plus, User, Loader2, KeyRound, Ban, CheckCircle, Trash2, MoreHorizontal } from 'lucide-react'
 
 type CoachData = {
   id: number
@@ -159,6 +159,25 @@ export default function CoachesClient() {
     }
   }
 
+  const handleDeleteCoach = async (user: CoachData) => {
+    if (!confirm(`警告：确定要彻底删除教练 ${user.username} 吗？此操作不可逆！\n\n如果该教练下有学生或题目数据，删除可能会失败。建议先禁用。`)) return
+
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        alert('删除成功')
+        fetchCoaches()
+      } else {
+        const data = await res.json()
+        alert(data.error || '删除失败')
+      }
+    } catch (error) {
+      alert('删除失败')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight text-gray-800">教练管理</h2>
@@ -252,25 +271,61 @@ export default function CoachesClient() {
                             <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">正常</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 flex gap-2">
-                          {user.status === 'PENDING' && (
-                            <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(user, 'ACTIVE')} className="text-green-600 border-green-200 hover:bg-green-50">
-                              <CheckCircle className="w-4 h-4 mr-1" /> 激活
-                            </Button>
-                          )}
-                          {user.status === 'ACTIVE' && (
-                            <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(user, 'DISABLED')} className="text-red-600 border-red-200 hover:bg-red-50">
-                              <Ban className="w-4 h-4 mr-1" /> 禁用
-                            </Button>
-                          )}
-                          {user.status === 'DISABLED' && (
-                            <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(user, 'ACTIVE')} className="text-blue-600 border-blue-200 hover:bg-blue-50">
-                              <CheckCircle className="w-4 h-4 mr-1" /> 启用
-                            </Button>
-                          )}
-                          <Button variant="outline" size="sm" onClick={() => { setSelectedCoach(user); setIsResetDialogOpen(true); }}>
-                            <KeyRound className="w-4 h-4" /> 重置密码
-                          </Button>
+                        <td className="px-4 py-3 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">打开菜单</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => { setSelectedCoach(user); setIsResetDialogOpen(true); }}
+                              >
+                                <KeyRound className="mr-2 h-4 w-4" />
+                                <span>重置密码</span>
+                              </DropdownMenuItem>
+
+                              {user.status === 'PENDING' && (
+                                <DropdownMenuItem
+                                  onClick={() => handleUpdateStatus(user, 'ACTIVE')}
+                                  className="text-green-600"
+                                >
+                                  <CheckCircle className="mr-2 h-4 w-4" />
+                                  <span>激活账号</span>
+                                </DropdownMenuItem>
+                              )}
+
+                              {user.status === 'ACTIVE' && (
+                                <DropdownMenuItem
+                                  onClick={() => handleUpdateStatus(user, 'DISABLED')}
+                                  className="text-orange-600"
+                                >
+                                  <Ban className="mr-2 h-4 w-4" />
+                                  <span>禁用账号</span>
+                                </DropdownMenuItem>
+                              )}
+
+                              {user.status === 'DISABLED' && (
+                                <DropdownMenuItem
+                                  onClick={() => handleUpdateStatus(user, 'ACTIVE')}
+                                  className="text-green-600"
+                                >
+                                  <CheckCircle className="mr-2 h-4 w-4" />
+                                  <span>启用账号</span>
+                                </DropdownMenuItem>
+                              )}
+
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteCoach(user)}
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                <span>删除账号</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       </tr>
                     ))}

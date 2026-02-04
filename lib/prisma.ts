@@ -15,7 +15,25 @@ const prismaClientSingleton = () => {
   const isEdge = process.env.NEXT_RUNTIME === 'edge' || (typeof WebSocket !== 'undefined' && process.env.NODE_ENV === 'production');
 
   if (isEdge) {
-    const pool = new Pool({ connectionString })
+    // 显式配置 WebSocket，解决 Edge Runtime 下 Connection closed 问题
+    neonConfig.webSocketConstructor = WebSocket
+    
+    // 在 Edge 环境下，限制连接池大小为 1，利用 Neon 的多路复用能力
+    // 避免在 Edge Worker 中建立过多 WebSocket 连接导致 Connection closed
+    const pool = new Pool({ 
+      connectionString, 
+      max: 1,
+      // 设置连接超时，避免无限等待
+      connectionTimeoutMillis: 5000,
+      // 设置空闲超时，允许回收空闲连接 (可选，视情况而定，这里暂时保持默认)
+    })
+
+    // [关键修复] 监听连接池错误，防止 uncaughtException 导致进程崩溃
+    pool.on('error', (err) => {
+      console.error('Neon Pool Error (Recoverable):', err)
+      // 连接池通常会自动重连，记录错误即可
+    })
+
     const adapter = new PrismaNeon(pool as any)
     return new PrismaClient({ adapter })
   } else {
