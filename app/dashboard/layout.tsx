@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { LayoutDashboard, BookOpen, CheckSquare, Users, LogOut, User, Home } from 'lucide-react'
 import { logout, getSession } from '@/lib/auth'
 import { redirect } from 'next/navigation'
+import DashboardNavLink from '@/components/DashboardNavLink'
 
 export default async function DashboardLayout({
   children,
@@ -39,38 +40,38 @@ export default async function DashboardLayout({
             </Link>
           </div>
 
-          <NavLink href="/dashboard" icon={<LayoutDashboard size={20} />}>
+          <DashboardNavLink href="/dashboard" icon={<LayoutDashboard size={20} />}>
             概览统计
-          </NavLink>
-          <NavLink href="/dashboard/problems" icon={<BookOpen size={20} />}>
+          </DashboardNavLink>
+          <DashboardNavLink href="/dashboard/problems" icon={<BookOpen size={20} />}>
             每日一题
-          </NavLink>
+          </DashboardNavLink>
           {isSuperAdmin && (
-            <NavLink href="/dashboard/problem-bank" icon={<BookOpen size={20} />}>
+            <DashboardNavLink href="/dashboard/problem-bank" icon={<BookOpen size={20} />}>
               题库总览
-            </NavLink>
+            </DashboardNavLink>
           )}
-          <NavLink href="/dashboard/submissions" icon={<CheckSquare size={20} />}>
+          <DashboardNavLink href="/dashboard/submissions" icon={<CheckSquare size={20} />}>
             提交批改
-          </NavLink>
-          <NavLink href="/dashboard/classes" icon={<Users size={20} />}>
+          </DashboardNavLink>
+          <DashboardNavLink href="/dashboard/classes" icon={<Users size={20} />}>
             班级管理
-          </NavLink>
+          </DashboardNavLink>
 
           {isSuperAdmin && (
-            <NavLink href="/dashboard/coaches" icon={<Users size={20} />}>
+            <DashboardNavLink href="/dashboard/coaches" icon={<Users size={20} />}>
               教练管理
-            </NavLink>
+            </DashboardNavLink>
           )}
 
-          <NavLink href="/dashboard/students" icon={<Users size={20} />}>
+          <DashboardNavLink href="/dashboard/students" icon={<Users size={20} />}>
             {isSuperAdmin ? '棋手管理' : '学生账号'}
-          </NavLink>
+          </DashboardNavLink>
 
           <div className="pt-4 mt-4 border-t border-gray-200">
-            <NavLink href="/profile" icon={<User size={20} />}>
+            <DashboardNavLink href="/profile" icon={<User size={20} />}>
               个人中心
-            </NavLink>
+            </DashboardNavLink>
           </div>
         </nav>
 
@@ -93,17 +94,5 @@ export default async function DashboardLayout({
         {children}
       </main>
     </div>
-  )
-}
-
-function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-md transition-colors font-medium"
-    >
-      {icon}
-      {children}
-    </Link>
   )
 }

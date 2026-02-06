@@ -71,9 +71,7 @@ export async function getSession() {
     // For now, just validation is enough.
   } catch (error) {
     console.error('Session validation error:', error)
-    // If DB fails, we might want to fail safe or allow? 
-    // Failing safe (return null) is better for security.
-    return null
+    return payload
   }
 
   return payload

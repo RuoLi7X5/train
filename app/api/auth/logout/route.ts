@@ -8,8 +8,10 @@ export async function GET(request: Request) {
   
   // Create response to redirect to login
   const url = new URL('/login', request.url)
-  // Add a query param to indicate forced logout if needed
-  url.searchParams.set('reason', 'disabled')
+  const reason = new URL(request.url).searchParams.get('reason')
+  if (reason) {
+    url.searchParams.set('reason', reason)
+  }
   
   return NextResponse.redirect(url)
 }
