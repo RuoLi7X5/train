@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui'
 import { Loader2, GraduationCap } from 'lucide-react'
@@ -10,10 +10,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const inFlightRef = useRef(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     setIsLoading(true)
     setError('')
 
@@ -26,19 +29,17 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       })
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.message || '登录失败')
-      }
+      const text = await res.text()
+      const data = text ? JSON.parse(text) : {}
+      if (!res.ok) throw new Error(data.message || '登录失败')
 
       // 登录成功，所有角色统一跳转到首页
-      router.push('/')
-      router.refresh() // 刷新以更新服务器组件状态
+      window.location.href = '/'
     } catch (err: any) {
       setError(err.message)
     } finally {
       setIsLoading(false)
+      inFlightRef.current = false
     }
   }
 
