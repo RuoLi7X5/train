@@ -45,6 +45,11 @@ export default async function DashboardLayout({
           <NavLink href="/dashboard/problems" icon={<BookOpen size={20} />}>
             每日一题
           </NavLink>
+          {isSuperAdmin && (
+            <NavLink href="/dashboard/problem-bank" icon={<BookOpen size={20} />}>
+              题库总览
+            </NavLink>
+          )}
           <NavLink href="/dashboard/submissions" icon={<CheckSquare size={20} />}>
             提交批改
           </NavLink>

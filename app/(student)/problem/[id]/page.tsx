@@ -21,8 +21,27 @@ export default async function ProblemPage({ params }: Props) {
   const problem = await prisma.problem.findUnique({
     where: { id: problemId }
   })
+  const prismaPush = (prisma as any).problemPush
 
   if (!problem) return notFound()
+
+  const now = new Date()
+  let push = null
+  if (session?.user?.id) {
+    push = await prismaPush.findFirst({
+      where: {
+        studentId: session.user.id,
+        problemId: problemId
+      }
+    })
+
+    if (push?.status === 'ACTIVE' && push.dueAt && now > push.dueAt) {
+      push = await prismaPush.update({
+        where: { id: push.id },
+        data: { status: 'EXPIRED' }
+      })
+    }
+  }
 
   // Get all submissions for this user
   let submissions: any[] = []
@@ -52,6 +71,7 @@ export default async function ProblemPage({ params }: Props) {
   // Actually, user said "answer also timed release". So even if I submitted, I can't see it until time comes.
   
   const canViewAnswer = submissions.length > 0 && isAnswerReleased
+  const isExpired = push?.status === 'EXPIRED'
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-12">
@@ -128,8 +148,16 @@ export default async function ProblemPage({ params }: Props) {
       )}
 
       {/* New Submission Form - Only if not correct yet */}
-      {!isCorrect && (
+      {!isCorrect && !isExpired && (
         <SubmitForm problemId={problemId} />
+      )}
+
+      {!isCorrect && isExpired && (
+        <Card className="bg-gray-50 border-dashed">
+          <CardContent className="p-6 text-center text-gray-500">
+            已超过截止时间，无法提交
+          </CardContent>
+        </Card>
       )}
 
       {/* Comments Section - Gatekeeping */}

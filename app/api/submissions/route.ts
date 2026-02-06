@@ -77,6 +77,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Problem ID required' }, { status: 400 })
     }
 
+    const prismaPush = (prisma as any).problemPush
+    const push = await prismaPush.findFirst({
+      where: {
+        studentId: session.user.id,
+        problemId: pId
+      }
+    })
+
+    if (push?.status === 'EXPIRED') {
+      return NextResponse.json({ message: '已超过截止时间，无法提交' }, { status: 403 })
+    }
+
+    if (push?.status === 'ACTIVE' && push.dueAt && new Date() > push.dueAt) {
+      await prismaPush.update({
+        where: { id: push.id },
+        data: { status: 'EXPIRED' }
+      })
+      return NextResponse.json({ message: '已超过截止时间，无法提交' }, { status: 403 })
+    }
+
     // 检查是否已经答对
     const lastCorrect = await prisma.submission.findFirst({
       where: {
@@ -99,6 +119,13 @@ export async function POST(request: Request) {
         status: 'PENDING'
       }
     })
+
+    if (push?.status === 'ACTIVE') {
+      await prismaPush.update({
+        where: { id: push.id },
+        data: { status: 'COMPLETED' }
+      })
+    }
 
     return NextResponse.json(submission)
   } catch (error) {

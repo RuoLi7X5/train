@@ -23,6 +23,12 @@ enum UserStatus {
   DISABLED
 }
 
+enum PushStatus {
+  ACTIVE
+  EXPIRED
+  COMPLETED
+}
+
 model Class {
   id        Int      @id @default(autoincrement())
   name      String   
@@ -63,11 +69,14 @@ model User {
   
   submissions Submission[]
   comments    Comment[]
+  studentPushes ProblemPush[] @relation("StudentPushes")
+  coachPushes   ProblemPush[] @relation("CoachPushes")
 }
 
 model Problem {
   id            Int          @id @default(autoincrement())
   date          String       // Format: YYYY-MM-DD
+  publishAt     DateTime?
   content       String
   imageUrl      String?
   
@@ -81,6 +90,7 @@ model Problem {
   
   submissions   Submission[]
   comments      Comment[]
+  pushes        ProblemPush[]
 
   // New fields
   authorId      Int?
@@ -120,4 +130,21 @@ model Comment {
   
   problemId Int
   problem   Problem  @relation(fields: [problemId], references: [id])
+}
+
+model ProblemPush {
+  id        Int        @id @default(autoincrement())
+  problemId Int
+  problem   Problem    @relation(fields: [problemId], references: [id])
+  studentId Int
+  student   User       @relation("StudentPushes", fields: [studentId], references: [id])
+  coachId   Int
+  coach     User       @relation("CoachPushes", fields: [coachId], references: [id])
+  pushedAt  DateTime   @default(now())
+  dueAt     DateTime?
+  status    PushStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([problemId, studentId])
 }

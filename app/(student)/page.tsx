@@ -8,29 +8,41 @@ import { getSession } from '@/lib/auth'
 
 export default async function StudentHomePage() {
   const session = await getSession()
-  const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const prismaPush = (prisma as any).problemPush
 
-  // 获取今日题目
-  // 优先展示教练发布的题目，其次是公共题目
-  const problem = await prisma.problem.findFirst({
-    where: {
-      date: today,
-      OR: [
-        { authorId: session.user.coachId },
-        { authorId: null }
-      ]
-    },
-    orderBy: {
-      // 优先显示有 authorId 的 (即教练的)，假设 ID > 0
-      authorId: 'desc'
-    },
-    include: {
-      _count: { select: { submissions: true } }
+  let push = null
+  if (session?.user?.id) {
+    push = await prismaPush.findFirst({
+      where: {
+        studentId: session.user.id,
+        status: { in: ['ACTIVE', 'EXPIRED'] }
+      },
+      orderBy: { pushedAt: 'desc' },
+      include: {
+        problem: {
+          include: { _count: { select: { submissions: true } } }
+        }
+      }
+    })
+
+    if (push?.status === 'ACTIVE' && push.dueAt && now > push.dueAt) {
+      push = await prismaPush.update({
+        where: { id: push.id },
+        data: { status: 'EXPIRED' },
+        include: {
+          problem: {
+            include: { _count: { select: { submissions: true } } }
+          }
+        }
+      })
     }
-  })
+  }
 
   // 获取用户今日提交（最新一条）
   let submission = null
+  const problem = push?.problem || null
+  const isExpired = push?.status === 'EXPIRED'
   if (problem && session) {
     submission = await prisma.submission.findFirst({
       where: {
@@ -53,6 +65,20 @@ export default async function StudentHomePage() {
     }
   }
 
+  const formatRemaining = (dueAt: Date) => {
+    const diff = dueAt.getTime() - now.getTime()
+    if (diff <= 0) return '已逾期'
+    const totalMinutes = Math.floor(diff / 60000)
+    const days = Math.floor(totalMinutes / 1440)
+    const hours = Math.floor((totalMinutes % 1440) / 60)
+    const minutes = totalMinutes % 60
+    const parts = []
+    if (days > 0) parts.push(`${days}天`)
+    if (hours > 0) parts.push(`${hours}小时`)
+    parts.push(`${minutes}分钟`)
+    return `剩余 ${parts.join('')}`
+  }
+
   return (
     <div className="space-y-8">
       {/* 欢迎语 */}
@@ -72,7 +98,7 @@ export default async function StudentHomePage() {
       <section>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Calendar className="w-5 h-5 text-blue-600" />
-          今日任务 ({today})
+          今日任务
         </h2>
 
         {problem ? (
@@ -100,15 +126,31 @@ export default async function StudentHomePage() {
                     )}
                     <span className="text-gray-300 text-sm">|</span>
                     <span className="text-gray-500 text-sm">{problem._count.submissions} 人已参与</span>
+                    {push?.dueAt && (
+                      <>
+                        <span className="text-gray-300 text-sm">|</span>
+                        <span className={`text-sm ${push.status === 'EXPIRED' ? 'text-red-600' : 'text-orange-600'}`}>
+                          {push.status === 'EXPIRED'
+                            ? '已逾期'
+                            : formatRemaining(new Date(push.dueAt))}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <p className="text-gray-800 text-lg font-medium line-clamp-2">{problem.content}</p>
                 </div>
 
-                <Link href={`/problem/${problem.id}`}>
-                  <Button className="shrink-0">
-                    {submission ? '查看详情' : '去完成'} <ArrowRight className="ml-2 w-4 h-4" />
+                {isExpired && !submission ? (
+                  <Button className="shrink-0" disabled>
+                    已逾期
                   </Button>
-                </Link>
+                ) : (
+                  <Link href={`/problem/${problem.id}`}>
+                    <Button className="shrink-0">
+                      {submission ? '查看详情' : '去完成'} <ArrowRight className="ml-2 w-4 h-4" />
+                    </Button>
+                  </Link>
+                )}
               </div>
             </CardContent>
           </Card>

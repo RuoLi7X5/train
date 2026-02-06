@@ -20,15 +20,20 @@ export default function ProblemsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [uploading, setUploading] = useState(false)
 
-  // Form state
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [publishAt, setPublishAt] = useState(() => {
+    const now = new Date()
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  })
   const [content, setContent] = useState('')
   const [imageUrl, setImageUrl] = useState('')
 
   // Answer state
   const [answerContent, setAnswerContent] = useState('')
   const [answerImageUrl, setAnswerImageUrl] = useState('')
-  const [answerReleaseDate, setAnswerReleaseDate] = useState('')
+  const [answerReleaseHours, setAnswerReleaseHours] = useState(24)
+
+  const [pushToStudents, setPushToStudents] = useState(false)
+  const [pushDueAt, setPushDueAt] = useState('')
 
   const fetchProblems = async () => {
     try {
@@ -47,15 +52,6 @@ export default function ProblemsPage() {
   useEffect(() => {
     fetchProblems()
   }, [])
-
-  // Auto set answer release date when date changes
-  useEffect(() => {
-    if (date) {
-      const d = new Date(date)
-      d.setDate(d.getDate() + 1)
-      setAnswerReleaseDate(d.toISOString().split('T')[0])
-    }
-  }, [date])
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'problem' | 'answer') => {
     if (!e.target.files || e.target.files.length === 0) return
@@ -89,16 +85,24 @@ export default function ProblemsPage() {
     setSubmitting(true)
 
     try {
+      if (pushToStudents && !pushDueAt) {
+        alert('请设置推送截止时间')
+        setSubmitting(false)
+        return
+      }
+
       const res = await fetch('/api/problems', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date,
+          publishAt: new Date(publishAt).toISOString(),
           content,
           imageUrl,
           answerContent,
           answerImageUrl,
-          answerReleaseDate: answerReleaseDate ? new Date(answerReleaseDate).toISOString() : undefined
+          answerReleaseHours,
+          pushToStudents,
+          pushDueAt: pushDueAt ? new Date(pushDueAt).toISOString() : undefined
         }),
       })
 
@@ -107,6 +111,8 @@ export default function ProblemsPage() {
         setImageUrl('')
         setAnswerContent('')
         setAnswerImageUrl('')
+        setPushToStudents(false)
+        setPushDueAt('')
         fetchProblems()
         alert('发布成功！题目将按设定时间对学生可见。')
       } else {
@@ -136,15 +142,14 @@ export default function ProblemsPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="date">题目发布日期</Label>
+                <Label htmlFor="publishAt">题目发布时间</Label>
                 <Input
-                  id="date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  id="publishAt"
+                  type="datetime-local"
+                  value={publishAt}
+                  onChange={(e) => setPublishAt(e.target.value)}
                   required
                 />
-                <p className="text-xs text-gray-500">设定未来日期可实现定时发布。</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="content">题目内容</Label>
@@ -189,14 +194,20 @@ export default function ProblemsPage() {
               <div className="pt-4 border-t border-gray-200">
                 <h4 className="font-medium mb-3 text-gray-700">官方答案 (可选)</h4>
                 <div className="space-y-2">
-                  <Label htmlFor="answerDate">答案发布日期</Label>
-                  <Input
-                    id="answerDate"
-                    type="date"
-                    value={answerReleaseDate}
-                    onChange={(e) => setAnswerReleaseDate(e.target.value)}
-                  />
-                  <p className="text-xs text-gray-500">默认设定为题目发布日的次日。</p>
+                  <Label htmlFor="answerReleaseHours">答案发布时间</Label>
+                  <select
+                    id="answerReleaseHours"
+                    className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                    value={answerReleaseHours}
+                    onChange={(e) => setAnswerReleaseHours(Number(e.target.value))}
+                  >
+                    <option value={24}>24 小时后</option>
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {i + 1} 小时后
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2 mt-2">
                   <Label htmlFor="answerContent">答案解析</Label>
@@ -234,6 +245,30 @@ export default function ProblemsPage() {
                     </div>
                   )}
                 </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200 space-y-3">
+                <h4 className="font-medium text-gray-700">推送给学生</h4>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={pushToStudents}
+                    onChange={(e) => setPushToStudents(e.target.checked)}
+                  />
+                  推送到每日打卡
+                </label>
+                {pushToStudents && (
+                  <div className="space-y-2">
+                    <Label htmlFor="pushDueAt">推送截止时间</Label>
+                    <Input
+                      id="pushDueAt"
+                      type="datetime-local"
+                      value={pushDueAt}
+                      onChange={(e) => setPushDueAt(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
               </div>
 
               <Button type="submit" className="w-full" disabled={submitting}>
