@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui'
-import { Plus, User, Loader2, Check, X, KeyRound, UserMinus, Search, UserPlus, MoreHorizontal, CheckCircle, Ban, Trash2 } from 'lucide-react'
+import useSWR from 'swr'
+import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui'
+import { Plus, User, Loader2, KeyRound, UserMinus, Search, UserPlus, MoreHorizontal, CheckCircle, Ban, Trash2, RefreshCcw, AlertCircle, Check, X } from 'lucide-react'
 
 type UserData = {
   id: number
@@ -20,74 +21,63 @@ interface StudentsClientProps {
   userId: number
 }
 
-export default function StudentsClient({ userRole, userId }: StudentsClientProps) {
-  const [users, setUsers] = useState<UserData[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isAdding, setIsAdding] = useState(false)
+const fetcher = (url: string) => fetch(url).then(async (res) => {
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || errorData.message || 'Failed to fetch data');
+  }
+  return res.json();
+})
 
-  // Batch Generate Form (For both Admin and Coach)
+export default function StudentsClient({ userRole, userId }: StudentsClientProps) {
+  // Main List SWR
+  const { data: usersData, error: usersError, isLoading: isUsersLoading, mutate: mutateMainList } = useSWR<UserData[]>('/api/users', fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 5000,
+  })
+
+  const users = usersData || []
+  const isUsersError = !!usersError
+
+  // Search SWR
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const searchKey = debouncedSearchQuery.length >= 3
+    ? `/api/users?view=unbound&search=${encodeURIComponent(debouncedSearchQuery)}`
+    : null
+
+  const { data: searchResultsData, isLoading: isSearching, mutate: mutateSearchList } = useSWR<UserData[]>(searchKey, fetcher)
+  const searchResults = searchResultsData || []
+
+  // Component State
+  const [isAdding, setIsAdding] = useState(false)
+  const [activeTab, setActiveTab] = useState<'create' | 'add'>('create')
+
+  // Batch Generate Form
   const [batchCount, setBatchCount] = useState('5')
   const [batchPassword, setBatchPassword] = useState('')
   const [generatedUsers, setGeneratedUsers] = useState<UserData[]>([])
   const [showConfirm, setShowConfirm] = useState(false)
 
-  // Action State
+  // Actions State
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null)
   const [newPassword, setNewPassword] = useState('')
   const [isResetting, setIsResetting] = useState(false)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
-
-  // Add Existing Student State (New)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<{ id: number, username: string, displayName: string | null }[]>([])
-  const [isSearching, setIsSearching] = useState(false)
   const [selectedSearchUser, setSelectedSearchUser] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState<'create' | 'add'>('create')
 
   const isCoach = userRole === 'COACH'
   const isSuperAdmin = userRole === 'SUPER_ADMIN'
 
-  const fetchUsers = async () => {
-    try {
-      const res = await fetch('/api/users')
-      if (res.ok) {
-        const data = await res.json()
-        setUsers(data)
-      }
-    } catch (error) {
-      console.error('Failed to fetch users', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchUsers()
-  }, [])
-
-  // Search Effect
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (searchQuery.length < 3) {
-        setSearchResults([])
-        return
-      }
-      setIsSearching(true)
-      try {
-        const res = await fetch(`/api/users?view=unbound&search=${encodeURIComponent(searchQuery)}`)
-        if (res.ok) {
-          const data = await res.json()
-          setSearchResults(data)
-        }
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setIsSearching(false)
-      }
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
-
+  // Handlers
   const handleBatchGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsAdding(true)
@@ -103,7 +93,7 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
       if (res.ok || res.status === 206) {
         setGeneratedUsers(data.users)
         setShowConfirm(true)
-        fetchUsers()
+        mutateMainList() // Refresh main list to show PENDING users
       } else {
         alert(data.message || '生成失败')
       }
@@ -137,7 +127,7 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
         setGeneratedUsers([])
         setShowConfirm(false)
         setBatchPassword('')
-        fetchUsers()
+        mutateMainList() // Refresh main list
       } else {
         const data = await res.json()
         alert(data.message || '操作失败')
@@ -159,7 +149,8 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
         alert('添加成功')
         setSearchQuery('')
         setSelectedSearchUser(null)
-        fetchUsers()
+        mutateMainList() // Refresh main list
+        mutateSearchList() // Refresh search results (remove bound user)
       } else {
         alert(data.message || '添加失败')
       }
@@ -204,7 +195,7 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
       })
       if (res.ok) {
         alert('移除成功')
-        fetchUsers()
+        mutateMainList()
       } else {
         const data = await res.json()
         alert(data.message || '移除失败')
@@ -225,7 +216,7 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
       })
       if (res.ok) {
         alert('操作成功')
-        fetchUsers()
+        mutateMainList()
       } else {
         const data = await res.json()
         alert(data.message || '操作失败')
@@ -244,7 +235,7 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
       })
       if (res.ok) {
         alert('删除成功')
-        fetchUsers()
+        mutateMainList()
       } else {
         const data = await res.json()
         alert(data.error || '删除失败')
@@ -255,11 +246,15 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
   }
 
   const pageTitle = isSuperAdmin ? '教练账号生成' : '学生账号管理'
-  const addButtonText = '批量生成账号'
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold tracking-tight text-gray-800">{pageTitle}</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-3xl font-bold tracking-tight text-gray-800">{pageTitle}</h2>
+        <Button variant="outline" size="icon" onClick={() => mutateMainList()} title="刷新数据">
+          <RefreshCcw className={`h-4 w-4 ${isUsersLoading ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         {/* Left Column: Forms */}
@@ -427,7 +422,21 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {isUsersError ? (
+              <div className="rounded-md bg-red-50 p-4 border border-red-200">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">加载数据失败</h3>
+                    <div className="mt-2 text-sm text-red-700">
+                      <p>无法连接到服务器或数据获取出错。请点击刷新重试。</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : isUsersLoading && !usersData ? (
               <div className="text-center py-8 text-gray-500">加载中...</div>
             ) : users.length === 0 ? (
               <div className="text-center py-8 text-gray-500">暂无数据</div>

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button, Accordion, AccordionContent, AccordionItem, AccordionTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Label } from '@/components/ui'
-import { User, Search, KeyRound, UserMinus, ShieldAlert, MoreHorizontal, CheckCircle, Ban, Trash2 } from 'lucide-react'
+import { User, Search, KeyRound, UserMinus, ShieldAlert, MoreHorizontal, CheckCircle, Ban, Trash2, RefreshCcw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 
 type UserData = {
   id: number
@@ -25,38 +26,48 @@ type HierarchyData = {
   unbound: UserData[]
 }
 
-export default function SuperAdminStudentsClient() {
-  const [data, setData] = useState<HierarchyData>({ grouped: [], unbound: [] })
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
+const fetcher = (url: string) => fetch(url).then(async (res) => {
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to fetch data');
+  }
+  return res.json();
+})
 
+export default function SuperAdminStudentsClient() {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+
+  // Debounce effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const apiUrl = debouncedSearchTerm
+    ? `/api/users?view=hierarchy&search=${encodeURIComponent(debouncedSearchTerm)}`
+    : '/api/users?view=hierarchy'
+  
+  const { data, error, isLoading, mutate } = useSWR<HierarchyData>(apiUrl, fetcher, {
+    revalidateOnFocus: false, 
+    dedupingInterval: 5000,
+    keepPreviousData: true, // Keep showing previous data while loading new search results
+  })
+
+  // Safe data access
+  const safeData = data || { grouped: [], unbound: [] }
+  const isError = !!error
+  const isEmpty = !isLoading && !isError && safeData.grouped.length === 0 && safeData.unbound.length === 0
+
+  // --- Sort & Pagination Logic (Local State) ---
   const [coachSortConfig, setCoachSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [coachCurrentPage, setCoachCurrentPage] = useState(1);
   const coachItemsPerPage = 20;
 
-  const fetchHierarchy = async () => {
-    setLoading(true)
-    try {
-      const url = searchTerm
-        ? `/api/users?view=hierarchy&search=${encodeURIComponent(searchTerm)}`
-        : '/api/users?view=hierarchy'
-
-      const res = await fetch(url)
-      if (res.ok) {
-        const json = await res.json()
-        setData(json)
-      }
-    } catch (error) {
-      console.error('Failed to fetch hierarchy', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleCoachSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
-
-    // Default directions
     if (key === 'students') {
       direction = 'desc';
     } else if (key === 'createdAt') {
@@ -72,13 +83,11 @@ export default function SuperAdminStudentsClient() {
     }
 
     setCoachSortConfig({ key, direction });
-    setCoachCurrentPage(1); // Reset to first page
+    setCoachCurrentPage(1); 
   }
 
-  // Sorted Coaches Logic
-  const sortedCoaches = [...data.grouped].sort((a, b) => {
+  const sortedCoaches = [...safeData.grouped].sort((a, b) => {
     if (!coachSortConfig) return 0;
-
     const { key, direction } = coachSortConfig;
 
     if (key === 'username') {
@@ -87,7 +96,6 @@ export default function SuperAdminStudentsClient() {
         : b.username.localeCompare(a.username);
     }
     if (key === 'displayName') {
-      // Using zh-CN for pinyin sort if possible, fallback to localeCompare
       const valA = a.displayName || '';
       const valB = b.displayName || '';
       return direction === 'asc'
@@ -99,17 +107,11 @@ export default function SuperAdminStudentsClient() {
         ? a.students.length - b.students.length
         : b.students.length - a.students.length;
     }
-    // createdAt is not strictly in CoachGroup type but it exists in API response.
-    // We need to extend type or assume it's there. Let's update type def above if needed.
-    // Actually UserData has createdAt, but CoachGroup is manually defined.
-    // Let's assume CoachGroup includes User fields (it does from API).
-    // Safe check:
     if (key === 'createdAt') {
       const dateA = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
       const dateB = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
       return direction === 'asc' ? dateA - dateB : dateB - dateA;
     }
-
     return 0;
   });
 
@@ -117,7 +119,7 @@ export default function SuperAdminStudentsClient() {
   const paginatedCoaches = sortedCoaches.slice((coachCurrentPage - 1) * coachItemsPerPage, coachCurrentPage * coachItemsPerPage);
 
 
-  // Action Handlers
+  // --- Action Handlers ---
   const handleUpdateStatus = async (userId: number, username: string, newStatus: string) => {
     if (!confirm(`确定要${newStatus === 'DISABLED' ? '禁用' : '激活'}用户 ${username} 吗？`)) return
 
@@ -129,7 +131,7 @@ export default function SuperAdminStudentsClient() {
       })
       if (res.ok) {
         alert('操作成功')
-        fetchHierarchy()
+        mutate() // SWR Refresh
       } else {
         alert('操作失败')
       }
@@ -147,7 +149,7 @@ export default function SuperAdminStudentsClient() {
       })
       if (res.ok) {
         alert('删除成功')
-        fetchHierarchy()
+        mutate() // SWR Refresh
       } else {
         const data = await res.json()
         alert(data.error || '删除失败')
@@ -182,14 +184,6 @@ export default function SuperAdminStudentsClient() {
     }
   }
 
-  useEffect(() => {
-    // Debounce search
-    const timer = setTimeout(() => {
-      fetchHierarchy()
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [searchTerm])
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -202,25 +196,47 @@ export default function SuperAdminStudentsClient() {
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
+          <Button variant="outline" size="icon" onClick={() => mutate()} title="刷新数据">
+            <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </div>
 
-      {loading ? (
+      {isError ? (
+        <div className="rounded-md bg-red-50 p-4 border border-red-200">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">加载数据失败</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>无法连接到服务器或数据获取出错。请检查网络后点击刷新。</p>
+              </div>
+              <div className="mt-4">
+                <Button variant="outline" size="sm" onClick={() => mutate()} className="bg-red-50 hover:bg-red-100 text-red-800 border-red-200">
+                  重试
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : isLoading && !data ? (
         <div className="text-center py-10 text-gray-500">加载中...</div>
       ) : (
         <div className="space-y-8">
           {/* Unbound Students Section */}
-          {data.unbound.length > 0 && (
+          {safeData.unbound.length > 0 && (
             <Card className="border-orange-200 bg-orange-50/30">
               <CardHeader>
                 <CardTitle className="text-orange-700 flex items-center gap-2">
                   <ShieldAlert className="w-5 h-5" />
-                  未绑定/游离账号 ({data.unbound.length})
+                  未绑定/游离账号 ({safeData.unbound.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <StudentTable
-                  students={data.unbound}
+                  students={safeData.unbound}
                   onStatusChange={handleUpdateStatus}
                   onDelete={handleDeleteStudent}
                   onResetPassword={(id, name) => { setResetTarget({ id, username: name }); setIsResetDialogOpen(true); }}
@@ -234,7 +250,7 @@ export default function SuperAdminStudentsClient() {
             <h3 className="text-lg font-semibold text-gray-700">按教练分组</h3>
 
             {/* Coach Sort Header */}
-            {data.grouped.length > 0 && (
+            {safeData.grouped.length > 0 && (
               <div className="grid grid-cols-12 gap-4 px-8 py-2 bg-gray-100 rounded-t-lg text-xs font-semibold text-gray-600 uppercase border border-gray-200 border-b-0">
                 <div className="col-span-3 cursor-pointer hover:text-blue-600 flex items-center gap-1" onClick={() => handleCoachSort('username')}>
                   账号ID {coachSortConfig?.key === 'username' && (coachSortConfig.direction === 'asc' ? '↑' : '↓')}
@@ -251,8 +267,10 @@ export default function SuperAdminStudentsClient() {
               </div>
             )}
 
-            {data.grouped.length === 0 ? (
-              <div className="text-gray-500 italic">暂无教练数据</div>
+            {safeData.grouped.length === 0 ? (
+              <div className="text-gray-500 italic py-8 text-center bg-gray-50 rounded-lg border border-dashed">
+                {searchTerm ? '未找到匹配的教练或学生' : '暂无教练数据'}
+              </div>
             ) : (
               <>
                 <Accordion type="multiple" className="w-full space-y-2">
@@ -299,7 +317,7 @@ export default function SuperAdminStudentsClient() {
                 {coachTotalPages > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 bg-white border rounded-lg">
                     <div className="text-sm text-gray-500">
-                      第 {coachCurrentPage} / {coachTotalPages} 页 (共 {data.grouped.length} 位教练)
+                      第 {coachCurrentPage} / {coachTotalPages} 页 (共 {safeData.grouped.length} 位教练)
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -346,10 +364,6 @@ export default function SuperAdminStudentsClient() {
     </div>
   )
 }
-
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-
-// ... existing code ...
 
 function StudentTable({
   students,

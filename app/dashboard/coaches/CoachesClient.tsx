@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui'
-import { Plus, User, Loader2, KeyRound, Ban, CheckCircle, Trash2, MoreHorizontal } from 'lucide-react'
+import { Plus, User, Loader2, KeyRound, Ban, CheckCircle, Trash2, MoreHorizontal, RefreshCcw, AlertCircle } from 'lucide-react'
 
 type CoachData = {
   id: number
@@ -15,9 +16,20 @@ type CoachData = {
   }
 }
 
+const fetcher = (url: string) => fetch(url).then(async (res) => {
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || errorData.message || 'Failed to fetch data');
+  }
+  return res.json();
+})
+
 export default function CoachesClient() {
-  const [coaches, setCoaches] = useState<CoachData[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: coaches, error, isLoading, mutate } = useSWR<CoachData[]>('/api/users', fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 5000,
+  })
+
   const [isAdding, setIsAdding] = useState(false)
 
   // Batch Generate Form
@@ -31,26 +43,6 @@ export default function CoachesClient() {
   const [newPassword, setNewPassword] = useState('')
   const [isResetting, setIsResetting] = useState(false)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
-
-  const fetchCoaches = async () => {
-    try {
-      // 这里的 API 需要返回教练列表
-      // 目前 /api/users 对 SUPER_ADMIN 返回的是 COACH 列表，所以直接复用
-      const res = await fetch('/api/users')
-      if (res.ok) {
-        const data = await res.json()
-        setCoaches(data)
-      }
-    } catch (error) {
-      console.error('Failed to fetch coaches', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchCoaches()
-  }, [])
 
   const handleBatchGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,7 +59,7 @@ export default function CoachesClient() {
       if (res.ok || res.status === 206) {
         setGeneratedCoaches(data.users)
         setShowConfirm(true)
-        fetchCoaches()
+        mutate() // SWR Refresh
       } else {
         alert(data.message || '生成失败')
       }
@@ -101,7 +93,7 @@ export default function CoachesClient() {
         setGeneratedCoaches([])
         setShowConfirm(false)
         setBatchPassword('')
-        fetchCoaches()
+        mutate() // SWR Refresh
       } else {
         const data = await res.json()
         alert(data.message || '操作失败')
@@ -149,7 +141,7 @@ export default function CoachesClient() {
       })
       if (res.ok) {
         alert('操作成功')
-        fetchCoaches()
+        mutate() // SWR Refresh
       } else {
         const data = await res.json()
         alert(data.message || '操作失败')
@@ -168,7 +160,7 @@ export default function CoachesClient() {
       })
       if (res.ok) {
         alert('删除成功')
-        fetchCoaches()
+        mutate() // SWR Refresh
       } else {
         const data = await res.json()
         alert(data.error || '删除失败')
@@ -178,9 +170,17 @@ export default function CoachesClient() {
     }
   }
 
+  const isError = !!error
+  const isEmpty = !isLoading && !isError && (!coaches || coaches.length === 0)
+
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold tracking-tight text-gray-800">教练管理</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-3xl font-bold tracking-tight text-gray-800">教练管理</h2>
+        <Button variant="outline" size="icon" onClick={() => mutate()} title="刷新数据">
+          <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         {/* Left Column: Generate Form */}
@@ -246,7 +246,25 @@ export default function CoachesClient() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? <div>加载中...</div> : (
+            {isError ? (
+              <div className="rounded-md bg-red-50 p-4 border border-red-200">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">加载数据失败</h3>
+                    <div className="mt-2 text-sm text-red-700">
+                      <p>无法连接到服务器或数据获取出错。请点击刷新重试。</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : isLoading && !coaches ? (
+              <div className="text-center py-8 text-gray-500">加载中...</div>
+            ) : isEmpty ? (
+              <div className="text-center py-8 text-gray-500">暂无教练数据</div>
+            ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-gray-50 uppercase">
@@ -258,7 +276,7 @@ export default function CoachesClient() {
                     </tr>
                   </thead>
                   <tbody>
-                    {coaches.map(user => (
+                    {coaches?.map(user => (
                       <tr key={user.id} className="border-b hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium">{user.username}</td>
                         <td className="px-4 py-3">{user.displayName}</td>

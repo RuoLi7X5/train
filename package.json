@@ -7,7 +7,7 @@
     "build": "next build",
     "pages:build": "npx prisma generate && npx @cloudflare/next-on-pages",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "node -e \"process.env.ESLINT_USE_FLAT_CONFIG='true'; const { execSync } = require('child_process'); execSync('npx eslint app components lib middleware.ts next.config.ts tailwind.config.ts postcss.config.mjs prisma/**/*.ts', { stdio: 'inherit', env: process.env });\""
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",
@@ -37,6 +37,7 @@
     "react-dom": "19.0.0",
     "react-tooltip": "^5.30.0",
     "recharts": "^2.15.1",
+    "swr": "^2.4.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7"
   },

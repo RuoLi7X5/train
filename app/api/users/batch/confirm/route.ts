@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     }
 
     // Verify ownership and status
-    let whereClause: any = {
+    const whereClause: any = {
       id: { in: userIds },
       status: 'PENDING'
     }
