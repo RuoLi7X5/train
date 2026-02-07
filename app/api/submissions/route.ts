@@ -33,8 +33,11 @@ export async function GET(request: Request) {
         problem: true, 
         user: {
           select: { id: true, username: true, displayName: true, class: true }
-        } 
-      },
+        },
+        gradedBy: {
+          select: { id: true, username: true, displayName: true }
+        }
+      } as any,
       orderBy: { createdAt: 'desc' }
     })
     return NextResponse.json(submissions)
@@ -70,7 +73,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { problemId, content, imageUrl } = await request.json()
+    const { problemId, content, imageUrl, moves, elapsedSeconds, isTimeout } = await request.json()
     const pId = parseInt(problemId)
 
     if (!pId) {
@@ -110,14 +113,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: '您已完成该题，无需重复提交' }, { status: 400 })
     }
 
+    const normalizedMoves = Array.isArray(moves)
+      ? moves
+          .map((m: any) => ({ x: Number(m?.x), y: Number(m?.y) }))
+          .filter((m: any) => Number.isFinite(m.x) && Number.isFinite(m.y))
+      : null
+
     const submission = await prisma.submission.create({
       data: {
         userId: session.user.id,
         problemId: pId,
         content,
         imageUrl,
-        status: 'PENDING'
-      }
+        moves: normalizedMoves || undefined,
+        status: 'PENDING',
+        elapsedSeconds: Number.isFinite(Number(elapsedSeconds)) ? Math.max(0, Math.floor(Number(elapsedSeconds))) : undefined,
+        isTimeout: Boolean(isTimeout)
+      } as any
     })
 
     if (push?.status === 'ACTIVE') {

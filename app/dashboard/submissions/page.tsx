@@ -3,14 +3,24 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, Button, Label } from '@/components/ui'
 import { CheckSquare, ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Save, History } from 'lucide-react'
+import { applyMove, createEmptyBoard, type BoardPoint, type BoardState, type StoneColor } from '@/lib/go'
 
 type Submission = {
   id: number
   content: string | null
   imageUrl: string | null
+  elapsedSeconds?: number | null
+  isTimeout?: boolean | null
   status: 'PENDING' | 'CORRECT' | 'WRONG'
   feedback: string | null
+  gradedAt?: string | null
+  gradedBy?: {
+    id: number
+    username: string
+    displayName: string | null
+  } | null
   createdAt: string
+  moves?: { x: number; y: number }[] | null
   user: {
     id: number
     username: string
@@ -21,6 +31,8 @@ type Submission = {
     id: number
     date: string
     content: string
+    boardData?: { size: number; stones: { x: number; y: number; color: 'B' | 'W' }[] } | null
+    firstPlayer?: 'BLACK' | 'WHITE' | null
   }
 }
 
@@ -33,11 +45,70 @@ type GroupedSubmission = {
   latestStatus: string
 }
 
+type BoardStone = { x: number; y: number; color: 'B' | 'W' }
+type BoardData = { size: number; stones: BoardStone[] }
+type FirstPlayer = 'BLACK' | 'WHITE'
+
+const formatDuration = (seconds?: number | null) => {
+  if (seconds === null || seconds === undefined) return '-'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+const baseLetters = 'ABCDEFGHJKLMNOPQRST'.split('')
+
+const toBoardState = (boardData?: BoardData | null) => {
+  const size = boardData?.size || 19
+  const board = createEmptyBoard(size)
+  for (const s of boardData?.stones || []) {
+    board[s.y][s.x] = s.color
+  }
+  return board
+}
+
+const colorAt = (index: number, firstPlayer?: FirstPlayer | null): StoneColor =>
+  firstPlayer === 'WHITE' ? (index % 2 === 0 ? 'W' : 'B') : (index % 2 === 0 ? 'B' : 'W')
+
+const buildBoardAtStep = (
+  moves: { x: number; y: number }[] | null | undefined,
+  step: number,
+  boardData?: BoardData | null,
+  firstPlayer?: FirstPlayer | null
+) => {
+  const size = boardData?.size || 19
+  let board = toBoardState(boardData)
+  let koPoint: BoardPoint | null = null
+  const moveNumbers = new Map<string, number>()
+  if (!moves || step <= 0) return { board, moveNumbers }
+  const end = Math.min(step, moves.length)
+  for (let i = 0; i < end; i += 1) {
+    const m = moves[i]
+    const color = colorAt(i, firstPlayer)
+    const result = applyMove(board, m.x, m.y, color, koPoint)
+    if (!result.legal) break
+    const prev = board
+    const next = result.board
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        if (prev[y][x] && !next[y][x]) {
+          moveNumbers.delete(`${x},${y}`)
+        }
+      }
+    }
+    board = next
+    moveNumbers.set(`${m.x},${m.y}`, i + 1)
+    koPoint = result.nextKoPoint
+  }
+  return { board, moveNumbers }
+}
+
 export default function SubmissionsPage() {
   const [groupedSubmissions, setGroupedSubmissions] = useState<GroupedSubmission[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'ALL' | 'PENDING'>('PENDING')
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const [stepById, setStepById] = useState<Record<number, number>>({})
   
   // Grading state (mapped by submission ID)
   const [gradingState, setGradingState] = useState<Record<number, { status: 'CORRECT' | 'WRONG', feedback: string }>>({})
@@ -74,7 +145,14 @@ export default function SubmissionsPage() {
             g.latestStatus = hasPending ? 'PENDING' : g.submissions[0].status
         })
 
-        setGroupedSubmissions(Object.values(groups))
+        const list = Object.values(groups)
+        setGroupedSubmissions(list)
+        const nextSteps: Record<number, number> = {}
+        data.forEach(sub => {
+          const moves = Array.isArray(sub.moves) ? sub.moves : null
+          nextSteps[sub.id] = moves ? moves.length : 0
+        })
+        setStepById(prev => ({ ...nextSteps, ...prev }))
       }
     } catch (error) {
       console.error(error)
@@ -220,6 +298,12 @@ export default function SubmissionsPage() {
                             // Initialize state for this item
                             initGradingState(sub)
                             const state = gradingState[sub.id] || { status: 'CORRECT', feedback: '' }
+                            const moves = Array.isArray(sub.moves) ? sub.moves : []
+                            const boardData = (sub.problem.boardData as BoardData | null | undefined) || null
+                            const firstPlayer = (sub.problem.firstPlayer as FirstPlayer | null | undefined) || null
+                            const totalSteps = moves.length
+                            const currentStep = Math.min(stepById[sub.id] ?? totalSteps, totalSteps)
+                            const replayReady = totalSteps > 0 && !!boardData
 
                             return (
                                 <div key={sub.id} className="p-6 grid md:grid-cols-2 gap-6">
@@ -243,6 +327,146 @@ export default function SubmissionsPage() {
                                             <img src={sub.imageUrl} alt="Submission" className="mt-4 rounded-md border max-h-64 object-contain" />
                                             )}
                                         </div>
+                                        <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+                                            <span>思考用时：{formatDuration(sub.elapsedSeconds)}</span>
+                                            <span>超时：{sub.isTimeout ? '是' : '否'}</span>
+                                            {sub.gradedAt && (
+                                              <span>批改时间：{new Date(sub.gradedAt).toLocaleString()}</span>
+                                            )}
+                                            {sub.gradedBy && (
+                                              <span>批改人：{sub.gradedBy.displayName || sub.gradedBy.username}</span>
+                                            )}
+                                        </div>
+                                        {replayReady && (
+                                          <div className="bg-white p-4 rounded-md border space-y-3">
+                                            <div className="flex items-center justify-between">
+                                              <div className="text-sm font-medium text-gray-700">落子过程</div>
+                                              <div className="flex items-center gap-2">
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  disabled={currentStep <= 0}
+                                                  onClick={() =>
+                                                    setStepById(prev => ({
+                                                      ...prev,
+                                                      [sub.id]: Math.max(0, currentStep - 1)
+                                                    }))
+                                                  }
+                                                >
+                                                  上一步
+                                                </Button>
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  disabled={currentStep >= totalSteps}
+                                                  onClick={() =>
+                                                    setStepById(prev => ({
+                                                      ...prev,
+                                                      [sub.id]: Math.min(totalSteps, currentStep + 1)
+                                                    }))
+                                                  }
+                                                >
+                                                  下一步
+                                                </Button>
+                                              </div>
+                                            </div>
+                                            <div className="text-xs text-gray-600">当前手数：{currentStep} / {totalSteps}</div>
+                                            {(() => {
+                                              const size = boardData.size
+                                              const { board, moveNumbers } = buildBoardAtStep(moves, currentStep, boardData, firstPlayer)
+                                              const cellSize = 18
+                                              const stoneSize = 14
+                                              const padding = stoneSize / 2
+                                              const labelSize = 12
+                                              const paddingLeft = labelSize + padding
+                                              const paddingTop = labelSize + padding
+                                              const paddingRight = padding
+                                              const paddingBottom = padding
+                                              const width = (size - 1) * cellSize
+                                              const height = (size - 1) * cellSize
+                                              const stones = []
+                                              const labels = []
+                                              for (let x = 0; x < size; x += 1) {
+                                                labels.push(
+                                                  <span
+                                                    key={`col-${x}`}
+                                                    className="absolute flex items-center justify-center text-[9px] text-black"
+                                                    style={{
+                                                      width: cellSize,
+                                                      height: labelSize,
+                                                      left: paddingLeft + x * cellSize - cellSize / 2,
+                                                      top: 0
+                                                    }}
+                                                  >
+                                                    {x + 1}
+                                                  </span>
+                                                )
+                                              }
+                                              for (let y = 0; y < size; y += 1) {
+                                                labels.push(
+                                                  <span
+                                                    key={`row-${y}`}
+                                                    className="absolute flex items-center justify-center text-[9px] text-black"
+                                                    style={{
+                                                      width: labelSize,
+                                                      height: cellSize,
+                                                      left: 0,
+                                                      top: paddingTop + y * cellSize - cellSize / 2
+                                                    }}
+                                                  >
+                                                    {baseLetters[y]}
+                                                  </span>
+                                                )
+                                              }
+                                              for (let y = 0; y < size; y += 1) {
+                                                for (let x = 0; x < size; x += 1) {
+                                                  const c = board[y][x]
+                                                  if (!c) continue
+                                                  const n = moveNumbers.get(`${x},${y}`)
+                                                  const isBlack = c === 'B'
+                                                  stones.push(
+                                                    <span
+                                                      key={`stone-${x}-${y}`}
+                                                      className={`absolute rounded-full ${isBlack ? 'bg-black text-white' : 'bg-white border border-gray-400 text-black'} flex items-center justify-center`}
+                                                      style={{
+                                                        width: stoneSize,
+                                                        height: stoneSize,
+                                                        left: paddingLeft + x * cellSize - stoneSize / 2,
+                                                        top: paddingTop + y * cellSize - stoneSize / 2,
+                                                        fontSize: 9,
+                                                        fontWeight: 600
+                                                      }}
+                                                    >
+                                                      {n || ''}
+                                                    </span>
+                                                  )
+                                                }
+                                              }
+                                              return (
+                                                <div
+                                                  className="relative inline-block bg-white border border-gray-200"
+                                                  style={{
+                                                    width: width + paddingLeft + paddingRight,
+                                                    height: height + paddingTop + paddingBottom,
+                                                    paddingLeft,
+                                                    paddingTop,
+                                                    paddingRight,
+                                                    paddingBottom,
+                                                    backgroundImage:
+                                                      'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)',
+                                                    backgroundSize: `${cellSize}px ${cellSize}px`,
+                                                    backgroundPosition: '0 0',
+                                                    backgroundOrigin: 'content-box',
+                                                    backgroundClip: 'content-box',
+                                                  }}
+                                                >
+                                                  {labels}
+                                                  {stones}
+                                                </div>
+                                              )
+                                            })()}
+                                          </div>
+                                        )}
                                     </div>
 
                                     {/* Grading Form */}

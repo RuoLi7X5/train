@@ -60,12 +60,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getSession()
-  if (!session || session.user.role !== 'COACH') {
-    return NextResponse.json({ message: 'Unauthorized. Only Coaches can create problems.' }, { status: 401 })
+  if (!session || (session.user.role !== 'COACH' && session.user.role !== 'SUPER_ADMIN')) {
+    return NextResponse.json({ message: '只有教练或管理员可以出题' }, { status: 401 })
   }
 
   try {
-    const { publishAt, content, imageUrl, answerContent, answerImageUrl, answerReleaseHours, pushToStudents, pushDueAt } = await request.json()
+    const { publishAt, content, imageUrl, answerContent, answerImageUrl, answerReleaseHours, pushToStudents, pushDueAt, boardData, placementMode, firstPlayer, answerMoves } = await request.json()
 
     if (!publishAt || !content) {
       return NextResponse.json({ message: '发布时间和内容必填' }, { status: 400 })
@@ -105,7 +105,11 @@ export async function POST(request: Request) {
         answerContent,
         answerImage: answerImageUrl,
         answerReleaseDate: releaseDate,
-        authorId: session.user.id
+        authorId: session.user.id,
+        boardData,
+        placementMode,
+        firstPlayer,
+        answerMoves
       }
     } as any)
 

@@ -7,8 +7,215 @@ import SubmitForm from './SubmitForm'
 import CommentsSection from '@/components/CommentsSection'
 import SubmissionHistory from './SubmissionHistory'
 
+type StoneColor = 'B' | 'W'
+type BoardStone = { x: number; y: number; color: StoneColor }
+type BoardData = { size: number; stones: BoardStone[] }
+type Viewport = { minX: number; maxX: number; minY: number; maxY: number }
+
 type Props = {
   params: Promise<{ id: string }>
+}
+
+const computeViewport = (boardData: BoardData): Viewport => {
+  const size = boardData.size
+  if (!boardData.stones || boardData.stones.length === 0) {
+    return { minX: 0, maxX: size - 1, minY: 0, maxY: size - 1 }
+  }
+  let minX = size - 1
+  let maxX = 0
+  let minY = size - 1
+  let maxY = 0
+  for (const s of boardData.stones) {
+    if (s.x < minX) minX = s.x
+    if (s.x > maxX) maxX = s.x
+    if (s.y < minY) minY = s.y
+    if (s.y > maxY) maxY = s.y
+  }
+  const mid = Math.floor(size / 2)
+  const lowMax = mid - 1
+  const highMin = mid + 1
+  if (maxX <= lowMax && maxY <= lowMax) return { minX: 0, maxX: lowMax, minY: 0, maxY: lowMax }
+  if (minX >= highMin && maxY <= lowMax) return { minX: highMin, maxX: size - 1, minY: 0, maxY: lowMax }
+  if (maxX <= lowMax && minY >= highMin) return { minX: 0, maxX: lowMax, minY: highMin, maxY: size - 1 }
+  if (minX >= highMin && minY >= highMin) return { minX: highMin, maxX: size - 1, minY: highMin, maxY: size - 1 }
+  if (maxX <= lowMax) return { minX: 0, maxX: lowMax, minY: 0, maxY: size - 1 }
+  if (minX >= highMin) return { minX: highMin, maxX: size - 1, minY: 0, maxY: size - 1 }
+  if (maxY <= lowMax) return { minX: 0, maxX: size - 1, minY: 0, maxY: lowMax }
+  if (minY >= highMin) return { minX: 0, maxX: size - 1, minY: highMin, maxY: size - 1 }
+  return { minX: 0, maxX: size - 1, minY: 0, maxY: size - 1 }
+}
+
+const baseLetters = 'ABCDEFGHJKLMNOPQRST'.split('')
+
+const getLetters = (size: number) => baseLetters.slice(0, size)
+
+const getStarPoints = (size: number) => {
+  if (size === 19) {
+    return [
+      { x: 3, y: 3 },
+      { x: 3, y: 9 },
+      { x: 3, y: 15 },
+      { x: 9, y: 3 },
+      { x: 9, y: 9 },
+      { x: 9, y: 15 },
+      { x: 15, y: 3 },
+      { x: 15, y: 9 },
+      { x: 15, y: 15 }
+    ]
+  }
+  if (size === 13) {
+    return [
+      { x: 3, y: 3 },
+      { x: 3, y: 9 },
+      { x: 6, y: 6 },
+      { x: 9, y: 3 },
+      { x: 9, y: 9 }
+    ]
+  }
+  if (size === 9) {
+    return [
+      { x: 2, y: 2 },
+      { x: 2, y: 6 },
+      { x: 4, y: 4 },
+      { x: 6, y: 2 },
+      { x: 6, y: 6 }
+    ]
+  }
+  return []
+}
+
+const renderBoard = (boardData?: BoardData | null) => {
+  if (!boardData) return null
+  const size = boardData.size || 19
+  const viewport = computeViewport({ size, stones: boardData.stones || [] })
+  const letters = getLetters(size)
+  const stoneMap = new Map<string, StoneColor>()
+  for (const s of boardData.stones || []) {
+    stoneMap.set(`${s.x},${s.y}`, s.color)
+  }
+  const cellSize = 26
+  const stoneSize = 20
+  const padding = stoneSize / 2
+  const labelSize = 18
+  const paddingLeft = labelSize + padding
+  const paddingTop = labelSize + padding
+  const paddingRight = padding
+  const paddingBottom = padding
+  const cols = viewport.maxX - viewport.minX + 1
+  const rows = viewport.maxY - viewport.minY + 1
+  const width = (cols - 1) * cellSize
+  const height = (rows - 1) * cellSize
+  const stones = []
+  const labels = []
+  const starPoints = []
+  const stars = getStarPoints(size)
+  for (let y = viewport.minY; y <= viewport.maxY; y += 1) {
+    for (let x = viewport.minX; x <= viewport.maxX; x += 1) {
+      const c = stoneMap.get(`${x},${y}`)
+      if (!c) continue
+      stones.push(
+        <span
+          key={`stone-${x}-${y}`}
+          className={`absolute rounded-full ${c === 'B' ? 'bg-black' : 'bg-white border border-gray-400'}`}
+          style={{
+            width: stoneSize,
+            height: stoneSize,
+            left: paddingLeft + (x - viewport.minX) * cellSize - stoneSize / 2,
+            top: paddingTop + (y - viewport.minY) * cellSize - stoneSize / 2,
+          }}
+        />
+      )
+    }
+  }
+  for (let x = viewport.minX; x <= viewport.maxX; x += 1) {
+    labels.push(
+      <span
+        key={`col-${x}`}
+        className="absolute flex items-center justify-center text-[11px] text-black"
+        style={{
+          width: cellSize,
+          height: labelSize,
+          left: paddingLeft + (x - viewport.minX) * cellSize - cellSize / 2,
+          top: 0
+        }}
+      >
+        {x + 1}
+      </span>
+    )
+  }
+  for (let y = viewport.minY; y <= viewport.maxY; y += 1) {
+    labels.push(
+      <span
+        key={`row-${y}`}
+        className="absolute flex items-center justify-center text-[11px] text-black"
+        style={{
+          width: labelSize,
+          height: cellSize,
+          left: 0,
+          top: paddingTop + (y - viewport.minY) * cellSize - cellSize / 2
+        }}
+      >
+        {letters[y]}
+      </span>
+    )
+  }
+  for (const p of stars) {
+    if (p.x < viewport.minX || p.x > viewport.maxX || p.y < viewport.minY || p.y > viewport.maxY) continue
+    starPoints.push(
+      <span
+        key={`star-${p.x}-${p.y}`}
+        className="absolute rounded-full bg-black"
+        style={{
+          width: 4,
+          height: 4,
+          left: paddingLeft + (p.x - viewport.minX) * cellSize - 2,
+          top: paddingTop + (p.y - viewport.minY) * cellSize - 2
+        }}
+      />
+    )
+  }
+  return (
+    <div
+      className="relative inline-block bg-white"
+      style={{
+        width: width + paddingLeft + paddingRight,
+        height: height + paddingTop + paddingBottom,
+        paddingLeft,
+        paddingTop,
+        paddingRight,
+        paddingBottom,
+      }}
+    >
+      <span
+        className="absolute"
+        style={{
+          left: paddingLeft,
+          top: paddingTop,
+          width,
+          height,
+          backgroundImage:
+            'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)',
+          backgroundSize: `${cellSize}px ${cellSize}px`,
+          backgroundPosition: '0 0',
+          pointerEvents: 'none'
+        }}
+      />
+      <span
+        className="absolute"
+        style={{
+          left: paddingLeft,
+          top: paddingTop,
+          width,
+          height,
+          boxShadow: 'inset 0 0 0 2px #000',
+          pointerEvents: 'none'
+        }}
+      />
+      {labels}
+      {starPoints}
+      {stones}
+    </div>
+  )
 }
 
 export default async function ProblemPage({ params }: Props) {
@@ -24,6 +231,8 @@ export default async function ProblemPage({ params }: Props) {
   const prismaPush = (prisma as any).problemPush
 
   if (!problem) return notFound()
+  const boardData = (problem as any).boardData as BoardData | null | undefined
+  const firstPlayer = (problem as any).firstPlayer as 'BLACK' | 'WHITE' | null | undefined
 
   const now = new Date()
   let push = null
@@ -90,16 +299,18 @@ export default async function ProblemPage({ params }: Props) {
         </div>
         <CardContent className="p-6 space-y-4">
           <p className="text-lg text-gray-800 whitespace-pre-wrap">{problem.content}</p>
-          {problem.imageUrl && (
-            <div className="mt-4 rounded-lg overflow-hidden border border-gray-200">
-              <img 
-                src={problem.imageUrl} 
-                alt="Problem" 
-                className="w-full h-auto" 
-                suppressHydrationWarning
-              />
-            </div>
-          )}
+          {boardData
+            ? renderBoard(boardData)
+            : problem.imageUrl && (
+              <div className="mt-4 rounded-lg overflow-hidden border border-gray-200">
+                <img 
+                  src={problem.imageUrl} 
+                  alt="Problem" 
+                  className="w-full h-auto" 
+                  suppressHydrationWarning
+                />
+              </div>
+            )}
         </CardContent>
       </Card>
 
@@ -144,12 +355,12 @@ export default async function ProblemPage({ params }: Props) {
 
       {/* Submission History */}
       {submissions.length > 0 && (
-        <SubmissionHistory submissions={submissions} problemId={problemId} />
+        <SubmissionHistory submissions={submissions} problemId={problemId} boardData={boardData} firstPlayer={firstPlayer} />
       )}
 
       {/* New Submission Form - Only if not correct yet */}
       {!isCorrect && !isExpired && (
-        <SubmitForm problemId={problemId} />
+        <SubmitForm problemId={problemId} boardData={boardData} firstPlayer={firstPlayer} />
       )}
 
       {!isCorrect && isExpired && (

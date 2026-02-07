@@ -40,7 +40,9 @@ export async function PATCH(
       data: {
         status,
         feedback,
-      },
+        gradedAt: new Date(),
+        gradedById: session.user.id
+      } as any,
     })
     return NextResponse.json(submission)
   } catch (error) {

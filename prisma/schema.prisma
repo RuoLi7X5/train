@@ -29,6 +29,17 @@ enum PushStatus {
   COMPLETED
 }
 
+enum PlacementMode {
+  BLACK_ONLY
+  WHITE_ONLY
+  ALTERNATE
+}
+
+enum FirstPlayer {
+  BLACK
+  WHITE
+}
+
 model Class {
   id        Int      @id @default(autoincrement())
   name      String   
@@ -68,6 +79,7 @@ model User {
   createdProblems Problem[] @relation("CoachProblems")
   
   submissions Submission[]
+  gradedSubmissions Submission[] @relation("SubmissionGrader")
   comments    Comment[]
   studentPushes ProblemPush[] @relation("StudentPushes")
   coachPushes   ProblemPush[] @relation("CoachPushes")
@@ -84,6 +96,10 @@ model Problem {
   answerContent String?
   answerImage   String?
   answerReleaseDate DateTime? // 新增：答案发布时间，默认是题目日期后24小时
+  boardData     Json?
+  answerMoves   Json?
+  placementMode PlacementMode?
+  firstPlayer   FirstPlayer?
 
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -107,8 +123,14 @@ model Submission {
   id        Int      @id @default(autoincrement())
   content   String?
   imageUrl  String?
+  moves     Json?
+  elapsedSeconds Int?
+  isTimeout Boolean @default(false)
   status    String   @default("PENDING") // "PENDING", "CORRECT", "WRONG"
   feedback  String?
+  gradedAt DateTime?
+  gradedById Int?
+  gradedBy User? @relation("SubmissionGrader", fields: [gradedById], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

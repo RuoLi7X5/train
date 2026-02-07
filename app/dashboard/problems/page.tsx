@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label } from '@/components/ui'
-import { BookOpen, Upload, Loader2, Image as ImageIcon } from 'lucide-react'
+import { BookOpen, Upload, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import { applyMove, cloneBoard, createEmptyBoard, type BoardState, type StoneColor, type BoardPoint } from '@/lib/go'
 
 type Problem = {
   id: number
@@ -13,6 +14,9 @@ type Problem = {
     submissions: number
   }
 }
+
+type PlacementMode = 'BLACK_ONLY' | 'WHITE_ONLY' | 'ALTERNATE'
+type FirstPlayer = 'BLACK' | 'WHITE'
 
 export default function ProblemsPage() {
   const [problems, setProblems] = useState<Problem[]>([])
@@ -34,6 +38,18 @@ export default function ProblemsPage() {
 
   const [pushToStudents, setPushToStudents] = useState(false)
   const [pushDueAt, setPushDueAt] = useState('')
+  const boardSize = 19
+  const [placementMode, setPlacementMode] = useState<PlacementMode>('ALTERNATE')
+  const [firstPlayer, setFirstPlayer] = useState<FirstPlayer>('BLACK')
+  const [setupBoard, setSetupBoard] = useState<BoardState>(() => createEmptyBoard(boardSize))
+  const [setupNextColor, setSetupNextColor] = useState<StoneColor>('B')
+  const [trialMode, setTrialMode] = useState(false)
+  const [trialBoard, setTrialBoard] = useState<BoardState>(() => createEmptyBoard(boardSize))
+  const [trialNextColor, setTrialNextColor] = useState<StoneColor>('B')
+  const [trialMoves, setTrialMoves] = useState<BoardPoint[]>([])
+  const [trialKoPoint, setTrialKoPoint] = useState<BoardPoint | null>(null)
+  const [trialError, setTrialError] = useState('')
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true)
 
   const fetchProblems = async () => {
     try {
@@ -52,6 +68,294 @@ export default function ProblemsPage() {
   useEffect(() => {
     fetchProblems()
   }, [])
+
+  useEffect(() => {
+    setSetupNextColor('B')
+  }, [placementMode])
+
+  const boardToStones = (board: BoardState) => {
+    const stones: { x: number; y: number; color: StoneColor }[] = []
+    for (let y = 0; y < board.length; y += 1) {
+      for (let x = 0; x < board[y].length; x += 1) {
+        const c = board[y][x]
+        if (c) stones.push({ x, y, color: c })
+      }
+    }
+    return stones
+  }
+
+  const boardData = useMemo(() => {
+    const stones = boardToStones(setupBoard)
+    return { size: boardSize, stones }
+  }, [setupBoard])
+
+  const getPlacementColor = () => {
+    if (placementMode === 'BLACK_ONLY') return 'B'
+    if (placementMode === 'WHITE_ONLY') return 'W'
+    return setupNextColor
+  }
+
+  const toggleColor = (color: StoneColor) => (color === 'B' ? 'W' : 'B')
+
+  const handleSetupPlace = (x: number, y: number, overrideColor?: StoneColor) => {
+    if (trialMode) return
+    setTrialError('')
+    setSetupBoard((prev) => {
+      const next = cloneBoard(prev)
+      if (next[y][x]) {
+        next[y][x] = null
+        return next
+      }
+      const color = overrideColor ?? getPlacementColor()
+      next[y][x] = color
+      if (placementMode === 'ALTERNATE' && !overrideColor) {
+        setSetupNextColor(toggleColor(color))
+      }
+      return next
+    })
+  }
+
+  const handleSetupClick = (x: number, y: number) => {
+    handleSetupPlace(x, y)
+  }
+
+  const handleSetupSecondaryClick = (x: number, y: number) => {
+    if (placementMode === 'ALTERNATE') {
+      handleSetupPlace(x, y)
+      return
+    }
+    handleSetupPlace(x, y, toggleColor(getPlacementColor()))
+  }
+
+  const startTrial = () => {
+    setTrialMode(true)
+    setTrialBoard(cloneBoard(setupBoard))
+    const nextColor = firstPlayer === 'BLACK' ? 'B' : 'W'
+    setTrialNextColor(nextColor)
+    setTrialMoves([])
+    setTrialKoPoint(null)
+    setTrialError('')
+  }
+
+  const exitTrial = () => {
+    setTrialMode(false)
+    setTrialBoard(cloneBoard(setupBoard))
+    setTrialMoves([])
+    setTrialKoPoint(null)
+    setTrialError('')
+  }
+
+  const handleTrialClick = (x: number, y: number) => {
+    if (!trialMode) return
+    const result = applyMove(trialBoard, x, y, trialNextColor, trialKoPoint)
+    if (!result.legal) {
+      const errorMap: Record<string, string> = {
+        OUT_OF_RANGE: '落子超出棋盘范围',
+        OCCUPIED: '该位置已有棋子',
+        KO: '打劫禁止：请在别处落子',
+        SUICIDE: '此处为自杀禁着',
+      }
+      setTrialError(errorMap[result.error || ''] || '落子不合法')
+      return
+    }
+    setTrialError('')
+    setTrialBoard(result.board)
+    setTrialKoPoint(result.nextKoPoint)
+    setTrialMoves((prev) => [...prev, { x, y }])
+    setTrialNextColor(toggleColor(trialNextColor))
+  }
+
+  const clearSetupBoard = () => {
+    if (trialMode) return
+    setSetupBoard(createEmptyBoard(boardSize))
+    setSetupNextColor('B')
+  }
+
+  const baseLetters = 'ABCDEFGHJKLMNOPQRST'.split('')
+  const getLetters = (size: number) => baseLetters.slice(0, size)
+  const getStarPoints = (size: number) => {
+    if (size === 19) {
+      return [
+        { x: 3, y: 3 },
+        { x: 3, y: 9 },
+        { x: 3, y: 15 },
+        { x: 9, y: 3 },
+        { x: 9, y: 9 },
+        { x: 9, y: 15 },
+        { x: 15, y: 3 },
+        { x: 15, y: 9 },
+        { x: 15, y: 15 }
+      ]
+    }
+    if (size === 13) {
+      return [
+        { x: 3, y: 3 },
+        { x: 3, y: 9 },
+        { x: 6, y: 6 },
+        { x: 9, y: 3 },
+        { x: 9, y: 9 }
+      ]
+    }
+    if (size === 9) {
+      return [
+        { x: 2, y: 2 },
+        { x: 2, y: 6 },
+        { x: 4, y: 4 },
+        { x: 6, y: 2 },
+        { x: 6, y: 6 }
+      ]
+    }
+    return []
+  }
+
+  const renderBoardEditor = (
+    board: BoardState,
+    onPointClick: (x: number, y: number) => void,
+    onPointSecondaryClick?: (x: number, y: number) => void
+  ) => {
+    const cellSize = 26
+    const stoneSize = 20
+    const padding = stoneSize / 2
+    const labelSize = 18
+    const paddingLeft = labelSize + padding
+    const paddingTop = labelSize + padding
+    const paddingRight = padding
+    const paddingBottom = padding
+    const width = (boardSize - 1) * cellSize
+    const height = (boardSize - 1) * cellSize
+    const intersections = []
+    const stones = []
+    const labels = []
+    const starPoints = []
+    const letters = getLetters(boardSize)
+    const stars = getStarPoints(boardSize)
+    for (let y = 0; y < boardSize; y += 1) {
+      for (let x = 0; x < boardSize; x += 1) {
+        intersections.push(
+          <button
+            key={`pt-${x}-${y}`}
+            type="button"
+            onClick={() => onPointClick(x, y)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              if (onPointSecondaryClick) onPointSecondaryClick(x, y)
+            }}
+            className="absolute"
+            style={{
+              width: cellSize,
+              height: cellSize,
+              left: paddingLeft + x * cellSize - cellSize / 2,
+              top: paddingTop + y * cellSize - cellSize / 2,
+            }}
+          />
+        )
+        const c = board[y][x]
+        if (!c) continue
+        stones.push(
+          <span
+            key={`stone-${x}-${y}`}
+            className={`absolute rounded-full ${c === 'B' ? 'bg-black' : 'bg-white border border-gray-400'}`}
+            style={{
+              width: stoneSize,
+              height: stoneSize,
+              left: paddingLeft + x * cellSize - stoneSize / 2,
+              top: paddingTop + y * cellSize - stoneSize / 2,
+              pointerEvents: 'none'
+            }}
+          />
+        )
+      }
+    }
+    for (let x = 0; x < boardSize; x += 1) {
+      labels.push(
+        <span
+          key={`col-${x}`}
+          className="absolute flex items-center justify-center text-[11px] text-black"
+          style={{
+            width: cellSize,
+            height: labelSize,
+            left: paddingLeft + x * cellSize - cellSize / 2,
+            top: 0
+          }}
+        >
+          {x + 1}
+        </span>
+      )
+    }
+    for (let y = 0; y < boardSize; y += 1) {
+      labels.push(
+        <span
+          key={`row-${y}`}
+          className="absolute flex items-center justify-center text-[11px] text-black"
+          style={{
+            width: labelSize,
+            height: cellSize,
+            left: 0,
+            top: paddingTop + y * cellSize - cellSize / 2
+          }}
+        >
+          {letters[y]}
+        </span>
+      )
+    }
+    for (const p of stars) {
+      starPoints.push(
+        <span
+          key={`star-${p.x}-${p.y}`}
+          className="absolute rounded-full bg-black"
+          style={{
+            width: 4,
+            height: 4,
+            left: paddingLeft + p.x * cellSize - 2,
+            top: paddingTop + p.y * cellSize - 2
+          }}
+        />
+      )
+    }
+    return (
+      <div
+        className="relative inline-block bg-white"
+        style={{
+          width: width + paddingLeft + paddingRight,
+          height: height + paddingTop + paddingBottom,
+          paddingLeft,
+          paddingTop,
+          paddingRight,
+          paddingBottom,
+        }}
+      >
+        <span
+          className="absolute"
+          style={{
+            left: paddingLeft,
+            top: paddingTop,
+            width,
+            height,
+            backgroundImage:
+              'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)',
+            backgroundSize: `${cellSize}px ${cellSize}px`,
+            backgroundPosition: '0 0',
+            pointerEvents: 'none'
+          }}
+        />
+        <span
+          className="absolute"
+          style={{
+            left: paddingLeft,
+            top: paddingTop,
+            width,
+            height,
+            boxShadow: 'inset 0 0 0 2px #000',
+            pointerEvents: 'none'
+          }}
+        />
+        {labels}
+        {starPoints}
+        {intersections}
+        {stones}
+      </div>
+    )
+  }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'problem' | 'answer') => {
     if (!e.target.files || e.target.files.length === 0) return
@@ -102,7 +406,11 @@ export default function ProblemsPage() {
           answerImageUrl,
           answerReleaseHours,
           pushToStudents,
-          pushDueAt: pushDueAt ? new Date(pushDueAt).toISOString() : undefined
+          pushDueAt: pushDueAt ? new Date(pushDueAt).toISOString() : undefined,
+          boardData,
+          placementMode,
+          firstPlayer,
+          answerMoves: trialMoves.length ? trialMoves : null
         }),
       })
 
@@ -113,6 +421,11 @@ export default function ProblemsPage() {
         setAnswerImageUrl('')
         setPushToStudents(false)
         setPushDueAt('')
+        setTrialMode(false)
+        setTrialError('')
+        setTrialKoPoint(null)
+        setTrialMoves([])
+        setSetupBoard(createEmptyBoard(boardSize))
         fetchProblems()
         alert('发布成功！题目将按设定时间对学生可见。')
       } else {
@@ -130,9 +443,20 @@ export default function ProblemsPage() {
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight text-gray-800">每日一题管理</h2>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="relative">
+        {!isHistoryOpen && (
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen(true)}
+            className="absolute top-0 right-0 h-full w-7 flex items-center justify-center bg-white border border-gray-200 rounded-l-full shadow-md hover:bg-gray-50"
+            aria-label="展开历史题目"
+          >
+            <ChevronLeft className="h-4 w-4 text-gray-500" />
+          </button>
+        )}
+        <div className={`grid gap-6 ${isHistoryOpen ? 'md:grid-cols-3' : 'md:grid-cols-1'}`}>
         {/* Create Problem Form */}
-        <Card className="md:col-span-1 h-fit">
+        <Card className={isHistoryOpen ? 'md:col-span-1 h-fit' : 'md:col-span-1'}>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <BookOpen className="w-5 h-5" />
@@ -161,6 +485,57 @@ export default function ProblemsPage() {
                   placeholder="输入题目描述..."
                   required
                 />
+              </div>
+              <div className="space-y-3">
+                <Label>出题棋盘</Label>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm"
+                    value={placementMode}
+                    onChange={(e) => setPlacementMode(e.target.value as PlacementMode)}
+                    disabled={trialMode}
+                  >
+                    <option value="BLACK_ONLY">连续黑棋</option>
+                    <option value="WHITE_ONLY">连续白棋</option>
+                    <option value="ALTERNATE">黑白交替</option>
+                  </select>
+                  <select
+                    className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm"
+                    value={firstPlayer}
+                    onChange={(e) => setFirstPlayer(e.target.value as FirstPlayer)}
+                    disabled={trialMode}
+                  >
+                    <option value="BLACK">黑先</option>
+                    <option value="WHITE">白先</option>
+                  </select>
+                  {trialMode ? (
+                    <Button type="button" variant="outline" size="sm" onClick={exitTrial}>
+                      返回摆题
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="outline" size="sm" onClick={startTrial}>
+                      进入试下
+                    </Button>
+                  )}
+                  <Button type="button" variant="outline" size="sm" onClick={clearSetupBoard} disabled={trialMode}>
+                    清空棋盘
+                  </Button>
+                </div>
+                {trialMode && (
+                  <div className="text-sm text-gray-600">
+                    试下模式：当前轮到{trialNextColor === 'B' ? '黑' : '白'}落子
+                  </div>
+                )}
+                {trialError && (
+                  <div className="text-sm text-red-600">{trialError}</div>
+                )}
+                <div className="max-w-full overflow-x-auto">
+                  {renderBoardEditor(
+                    trialMode ? trialBoard : setupBoard,
+                    (x, y) => (trialMode ? handleTrialClick(x, y) : handleSetupClick(x, y)),
+                    trialMode ? undefined : handleSetupSecondaryClick
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>题目图片 (可选)</Label>
@@ -279,12 +654,23 @@ export default function ProblemsPage() {
         </Card>
 
         {/* Problems List */}
-        <Card className="md:col-span-2">
+        {isHistoryOpen && (
+          <Card className="md:col-span-2 relative z-10 bg-white">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <BookOpen className="w-5 h-5" />
-              历史题目
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BookOpen className="w-5 h-5" />
+                历史题目
+              </CardTitle>
+              <button
+                type="button"
+                onClick={() => setIsHistoryOpen(false)}
+                className="h-7 w-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                aria-label="收起历史题目"
+              >
+                <ChevronRight className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -316,7 +702,19 @@ export default function ProblemsPage() {
               </div>
             )}
           </CardContent>
-        </Card>
+          </Card>
+        )}
+        </div>
+        {isHistoryOpen && (
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen(false)}
+            className="absolute top-0 right-0 h-full w-7 flex items-center justify-center bg-white border border-gray-200 rounded-l-full shadow-md hover:bg-gray-50"
+            aria-label="收起历史题目"
+          >
+            <ChevronRight className="h-4 w-4 text-gray-500" />
+          </button>
+        )}
       </div>
     </div>
   )
