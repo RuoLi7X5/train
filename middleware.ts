@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { decrypt } from '@/lib/auth'
+import { decrypt } from '@/lib/auth-edge'
 
 export async function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get('session')
