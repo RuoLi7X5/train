@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 
-export const runtime = 'edge';
-
 // 获取班级内的学生，以及（可选）未分配班级的学生用于添加
 export async function GET(
   request: Request,

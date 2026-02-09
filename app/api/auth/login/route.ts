@@ -3,8 +3,6 @@ import prisma from '@/lib/prisma'
 import { compare, hash } from 'bcrypt-ts'
 import { login } from '@/lib/auth'
 
-export const runtime = 'edge';
-
 export async function POST(request: Request) {
   try {
     const body = await request.json()

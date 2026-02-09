@@ -2,6 +2,95 @@
 
 本文档旨在规划 "EverydayTongji" 项目的后续开发阶段。目标是将项目从单一的打卡工具演进为多租户、交互式、具备社区属性的围棋教育平台。
 
+---
+
+## 阶段零：合规部署与国内迁移 (Compliance & China Deployment) - [待启动]
+**目标**：满足国内ICP备案要求，保证国内访问稳定，同时保持改动最小与后续维护停机时间可控（目标：30-60 分钟以内）。
+
+### 0.1 资源选型与基础架构 (Infra Selection)
+- **方案**：国内云服务器直部署 + 国内托管数据库 + CDN。
+- **资源**：
+  - 云服务器（ECS/云主机）：用于部署 Next.js 应用。
+  - 托管数据库（PostgreSQL/RDS）：替代 Neon。
+  - CDN + DNS：提升国内访问，后续兼顾海外访问。
+
+### 0.2 部署形态与运行时调整 (Deployment Runtime)
+- **策略**：从 Cloudflare Pages（Edge）迁移到 Node 运行时。
+- **经典部署方式**：
+  - Nginx 反向代理 + Node 进程管理（如 PM2）。
+  - `next build` + `next start` 部署。
+- **改动范围**：移除/调整 `runtime = 'edge'` 的运行时声明与 Cloudflare 专属依赖。
+
+### 0.3 数据库迁移 (Neon -> 国内 PostgreSQL)
+- **迁移方式**：`pg_dump` 导出 -> 国内库导入。
+- **改动范围**：仅替换 `DATABASE_URL`，保持 Prisma 兼容。
+- **目标**：支持国内访问为主，海外访问可通过 CDN/加速链路补充。
+
+### 0.4 存储与上传策略 (R2 -> 国内对象存储)
+- **当前状态**：暂不需要图片上传。
+- **策略**：
+  - 阶段性下线上传接口，去除 R2 依赖。
+  - 后续若恢复图片，改用国内 OSS/COS/OBS（优先 S3 兼容）。
+
+### 0.5 备案与域名切换 (ICP & DNS)
+- **流程**：云厂商备案 -> 备案通过 -> 切换 DNS 到国内。
+- **目标**：一次切换完成，停机时间可控。
+
+### 0.6 监控与回滚 (Observability)
+- **基础项**：日志、监控、备份、健康检查。
+- **回滚**：保留海外环境与数据库备份，确保异常可快速恢复。
+
+### 0.7 阿里云落地步骤（傻瓜式流程）
+- **准备材料**：身份证、手机号、域名（实名）。
+- **购买 ECS**：
+  - 控制台搜索“云服务器 ECS” -> 创建实例。
+  - 地域选择就近城市（上海/北京/广州）。
+  - 镜像选择 `Ubuntu 22.04 LTS`。
+  - 规格选择 2C4G，带宽 1-3 Mbps。
+  - 登录方式选择“密码”，记住密码。
+- **购买 RDS（PostgreSQL）**：
+  - 控制台搜索“RDS” -> 创建实例。
+  - 选择 PostgreSQL，地域与 ECS 同城。
+  - 记录 host/port/用户名/密码/数据库名。
+- **备案流程**：
+  - 控制台搜索“备案” -> 个人备案。
+  - 填写资料、上传证件、等待审核。
+
+### 0.8 服务器部署步骤（Ubuntu）
+- **远程连接**：`ssh root@公网IP`。
+- **安装环境**：
+  - `apt update -y`
+  - `apt install -y git nginx curl`
+  - 安装 Node 20：`curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt install -y nodejs`
+  - 安装 PM2：`npm i -g pm2`
+- **拉取代码并安装依赖**：
+  - `git clone <仓库地址>`
+  - `cd everydaytongji && npm install`
+- **配置环境变量**：
+  - `nano .env`
+  - 写入 `DATABASE_URL` 等必要变量。
+- **构建与启动**：
+  - `npm run build`
+  - `pm2 start npm --name everydaytongji -- start`
+  - `pm2 save && pm2 startup`
+
+### 0.9 Nginx 反向代理
+- 配置 `/etc/nginx/sites-available/everydaytongji`：
+  - `proxy_pass http://127.0.0.1:3000;`
+  - 配置 `server_name` 为域名。
+- 启用并重载：
+  - `ln -s /etc/nginx/sites-available/everydaytongji /etc/nginx/sites-enabled/`
+  - `nginx -t && systemctl reload nginx`
+
+### 0.10 数据库迁移（Neon -> 阿里云 Postgres）
+- **导出**：`pg_dump "<Neon连接串>" > backup.sql`
+- **导入**：`psql "<阿里云连接串>" < backup.sql`
+- **更新**：修改服务器 `.env` 中 `DATABASE_URL`。
+
+### 0.11 备案通过后的域名解析
+- 域名控制台添加 A 记录 -> 指向 ECS 公网 IP。
+- 等待解析生效后访问。
+
 ## 阶段一：架构重构与多租户体系 (Architecture & Multi-Tenancy) - [已完成]
 **目标**：打好地基，支持多教练模式，优化基础用户体验。这是后续所有功能的基础。
 

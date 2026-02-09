@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 
-export const runtime = 'edge'
-
 export async function POST(request: Request) {
   const session = await getSession()
   if (!session || (session.user.role !== 'COACH' && session.user.role !== 'SUPER_ADMIN')) {

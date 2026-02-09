@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 
-export const runtime = 'edge';
-
 export async function GET() {
   const session = await getSession()
   if (!session || (session.user.role !== 'SUPER_ADMIN' && session.user.role !== 'COACH')) {

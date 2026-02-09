@@ -3,8 +3,6 @@ import prisma from '@/lib/prisma'
 import { hash } from 'bcrypt-ts'
 import { getSession } from '@/lib/auth'
 
-export const runtime = 'edge'
-
 export async function POST(request: Request) {
   const session = await getSession()
   // Allow SUPER_ADMIN or COACH

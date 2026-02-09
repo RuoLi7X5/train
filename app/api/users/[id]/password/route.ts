@@ -3,8 +3,6 @@ import prisma from '@/lib/prisma'
 import { hash } from 'bcrypt-ts'
 import { getSession } from '@/lib/auth'
 
-export const runtime = 'edge'
-
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
