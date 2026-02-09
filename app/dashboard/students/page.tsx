@@ -3,8 +3,6 @@ import { redirect } from 'next/navigation'
 import StudentsClient from './StudentsClient'
 import SuperAdminStudentsClient from './SuperAdminStudentsClient'
 
-export const runtime = 'edge';
-
 export default async function StudentsPage() {
   const session = await getSession()
   if (!session) {
