@@ -141,9 +141,12 @@ async function getUserStats(userId: number, role: string) {
  * 获取教练特有数据
  */
 async function getCoachData(userId: number) {
-  // 创建的题目数
+  // 创建的题目数（仅已发布的）
   const problemsCount = await prisma.problem.count({
-    where: { authorId: userId }
+    where: { 
+      authorId: userId,
+      isDraft: false
+    }
   })
 
   // 学生数
@@ -151,11 +154,11 @@ async function getCoachData(userId: number) {
     where: { coachId: userId, role: 'STUDENT' }
   })
 
-  // 最近创建的题目
+  // 最近创建的题目（仅显示已发布的，不显示草稿）
   const recentProblems = await prisma.problem.findMany({
     where: { 
       authorId: userId,
-      visibility: { in: ['STUDENTS', 'COMMUNITY'] } // 只展示公开的题目
+      isDraft: false // 只展示已发布的题目
     },
     orderBy: { createdAt: 'desc' },
     take: 10,
@@ -163,7 +166,6 @@ async function getCoachData(userId: number) {
       id: true,
       date: true,
       content: true,
-      visibility: true,
       createdAt: true,
       _count: {
         select: { submissions: true }

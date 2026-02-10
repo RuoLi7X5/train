@@ -25,7 +25,6 @@ type UserProfile = {
     id: number
     date: string
     content: string
-    visibility: string
     createdAt: string
     _count: { submissions: number }
   }>
@@ -219,13 +218,6 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                             <span className="flex items-center gap-1">
                               <Target className="w-4 h-4" />
                               {problem._count.submissions} 次提交
-                            </span>
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              problem.visibility === 'COMMUNITY' 
-                                ? 'bg-purple-100 text-purple-700' 
-                                : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              {problem.visibility === 'COMMUNITY' ? '公开' : '学生可见'}
                             </span>
                           </div>
                         </div>

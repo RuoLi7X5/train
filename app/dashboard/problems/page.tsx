@@ -18,7 +18,8 @@ type Problem = {
 
 type PlacementMode = 'BLACK_ONLY' | 'WHITE_ONLY' | 'ALTERNATE'
 type FirstPlayer = 'BLACK' | 'WHITE'
-type Visibility = 'PRIVATE' | 'STUDENTS' | 'COMMUNITY'
+type ClassData = { id: number; name: string }
+type StudentData = { id: number; username: string; displayName: string | null; classId: number | null }
 
 export default function ProblemsPage() {
   const toast = useToast()
@@ -39,9 +40,12 @@ export default function ProblemsPage() {
   const [answerImageUrl, setAnswerImageUrl] = useState('')
   const [answerReleaseHours, setAnswerReleaseHours] = useState(24)
 
-  // Visibility & Push settings
-  const [visibility, setVisibility] = useState<Visibility>('STUDENTS')
+  // Push settings - 班级和学生推送
+  const [classes, setClasses] = useState<ClassData[]>([])
+  const [students, setStudents] = useState<StudentData[]>([])
   const [pushToStudents, setPushToStudents] = useState(false)
+  const [selectedClasses, setSelectedClasses] = useState<number[]>([])
+  const [selectedStudents, setSelectedStudents] = useState<number[]>([])
   const [pushDueAt, setPushDueAt] = useState('')
   const boardSize = 19
   const [placementMode, setPlacementMode] = useState<PlacementMode>('ALTERNATE')
@@ -55,6 +59,8 @@ export default function ProblemsPage() {
   const [trialKoPoint, setTrialKoPoint] = useState<BoardPoint | null>(null)
   const [trialError, setTrialError] = useState('')
   const [isHistoryOpen, setIsHistoryOpen] = useState(true)
+  const [isDraftsExpanded, setIsDraftsExpanded] = useState(true)
+  const [isPublishedExpanded, setIsPublishedExpanded] = useState(true)
 
   const fetchProblems = async () => {
     try {
@@ -72,7 +78,28 @@ export default function ProblemsPage() {
 
   useEffect(() => {
     fetchProblems()
+    fetchClassesAndStudents()
   }, [])
+
+  const fetchClassesAndStudents = async () => {
+    try {
+      // 获取教练的班级列表
+      const classesRes = await fetch('/api/classes')
+      if (classesRes.ok) {
+        const classesData = await classesRes.json()
+        setClasses(classesData)
+      }
+
+      // 获取教练的学生列表
+      const studentsRes = await fetch('/api/users')
+      if (studentsRes.ok) {
+        const usersData = await studentsRes.json()
+        setStudents(usersData.filter((u: any) => u.role === 'STUDENT'))
+      }
+    } catch (error) {
+      console.error('Failed to fetch classes and students:', error)
+    }
+  }
 
   useEffect(() => {
     setSetupNextColor('B')
@@ -93,6 +120,13 @@ export default function ProblemsPage() {
     const stones = boardToStones(setupBoard)
     return { size: boardSize, stones }
   }, [setupBoard])
+
+  // 分类题目：草稿和已发布
+  const { drafts, published } = useMemo(() => {
+    const drafts = problems.filter((p: any) => p.isDraft === true)
+    const published = problems.filter((p: any) => p.isDraft !== true)
+    return { drafts, published }
+  }, [problems])
 
   const getPlacementColor = () => {
     if (placementMode === 'BLACK_ONLY') return 'B'
@@ -389,17 +423,32 @@ export default function ProblemsPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // 重置表单
+  const resetForm = () => {
+    setContent('')
+    setImageUrl('')
+    setAnswerContent('')
+    setAnswerImageUrl('')
+    setPushToStudents(false)
+    setSelectedClasses([])
+    setSelectedStudents([])
+    setPushDueAt('')
+    setTrialMode(false)
+    setTrialError('')
+    setTrialKoPoint(null)
+    setTrialMoves([])
+    setSetupBoard(createEmptyBoard(boardSize))
+  }
+
+  // 保存为草稿
+  const handleSaveDraft = async () => {
+    if (!content.trim()) {
+      toast.showWarning('请填写题目内容')
+      return
+    }
+
     setSubmitting(true)
-
     try {
-      if (pushToStudents && !pushDueAt) {
-        toast.showWarning('请设置推送截止时间')
-        setSubmitting(false)
-        return
-      }
-
       const res = await fetch('/api/problems', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -410,8 +459,65 @@ export default function ProblemsPage() {
           answerContent,
           answerImageUrl,
           answerReleaseHours,
-          visibility,
-          pushToStudents: visibility === 'STUDENTS' ? pushToStudents : false,
+          isDraft: true,
+          boardData,
+          placementMode,
+          firstPlayer,
+          answerMoves: trialMoves.length ? trialMoves : null
+        }),
+      })
+
+      if (res.ok) {
+        fetchProblems()
+        resetForm()
+        toast.showSuccess('草稿保存成功')
+      } else {
+        const data = await res.json()
+        toast.showError(data.message || '保存失败')
+      }
+    } catch (error) {
+      toast.showError('保存失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // 发布题目
+  const handlePublish = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!content.trim()) {
+      toast.showWarning('请填写题目内容')
+      return
+    }
+
+    if (pushToStudents) {
+      if (!pushDueAt) {
+        toast.showWarning('请设置推送截止时间')
+        return
+      }
+      if (selectedClasses.length === 0 && selectedStudents.length === 0) {
+        toast.showWarning('请选择要推送的班级或学生')
+        return
+      }
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/problems', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publishAt: new Date(publishAt).toISOString(),
+          content,
+          imageUrl,
+          answerContent,
+          answerImageUrl,
+          answerReleaseHours,
+          isDraft: false,
+          pushToStudents,
+          selectedClasses,
+          selectedStudents,
           pushDueAt: pushDueAt ? new Date(pushDueAt).toISOString() : undefined,
           boardData,
           placementMode,
@@ -421,25 +527,15 @@ export default function ProblemsPage() {
       })
 
       if (res.ok) {
-        setContent('')
-        setImageUrl('')
-        setAnswerContent('')
-        setAnswerImageUrl('')
-        setPushToStudents(false)
-        setPushDueAt('')
-        setTrialMode(false)
-        setTrialError('')
-        setTrialKoPoint(null)
-        setTrialMoves([])
-        setSetupBoard(createEmptyBoard(boardSize))
         fetchProblems()
-        toast.showSuccess('发布成功！题目将按设定时间对学生可见。')
+        resetForm()
+        toast.showSuccess('题目发布成功！')
       } else {
         const data = await res.json()
         toast.showError(data.message || '发布失败')
       }
     } catch (error) {
-        toast.showError('发布失败')
+      toast.showError('发布失败')
     } finally {
       setSubmitting(false)
     }
@@ -470,7 +566,7 @@ export default function ProblemsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handlePublish} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="publishAt">题目发布时间</Label>
                 <Input
@@ -629,41 +725,80 @@ export default function ProblemsPage() {
               </div>
 
               <div className="pt-4 border-t border-gray-200 space-y-4">
-                {/* Visibility 选择器 */}
-                <div className="space-y-2">
-                  <Label htmlFor="visibility" className="text-base font-medium text-gray-900">题目可见范围</Label>
-                  <select
-                    id="visibility"
-                    value={visibility}
-                    onChange={(e) => setVisibility(e.target.value as Visibility)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="PRIVATE">私有（仅自己可见，草稿）</option>
-                    <option value="STUDENTS">学生可见（仅自己的学生可见）</option>
-                    <option value="COMMUNITY">公开（所有人可见，发布到社区）</option>
-                  </select>
-                  <p className="text-xs text-gray-500">
-                    {visibility === 'PRIVATE' && '💡 草稿模式，仅您自己可见，可用于准备题目'}
-                    {visibility === 'STUDENTS' && '👥 仅您名下的学生可以看到此题目'}
-                    {visibility === 'COMMUNITY' && '🌍 题目将发布到公共社区，所有用户都可以看到和练习'}
-                  </p>
-                </div>
-
-                {/* 推送选项（仅当 visibility 为 STUDENTS 时显示） */}
-                {visibility === 'STUDENTS' && (
-                  <div className="space-y-3 pl-4 border-l-2 border-blue-200">
-                    <h4 className="font-medium text-gray-700">推送设置</h4>
+                {/* 推送设置 */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-gray-900">推送设置（可选）</h4>
                     <label className="flex items-center gap-2 text-sm text-gray-700">
                       <input
                         type="checkbox"
                         checked={pushToStudents}
                         onChange={(e) => setPushToStudents(e.target.checked)}
                       />
-                      推送到学生的每日打卡任务
+                      启用推送到学生
                     </label>
-                    {pushToStudents && (
+                  </div>
+                  
+                  {pushToStudents && (
+                    <div className="space-y-4 pl-4 border-l-2 border-blue-200">
+                      {/* 班级选择 */}
+                      {classes.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">选择班级</Label>
+                          <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded-md p-2">
+                            {classes.map((cls) => (
+                              <label key={cls.id} className="flex items-center gap-2 text-sm hover:bg-gray-50 p-1 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedClasses.includes(cls.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedClasses([...selectedClasses, cls.id])
+                                    } else {
+                                      setSelectedClasses(selectedClasses.filter(id => id !== cls.id))
+                                    }
+                                  }}
+                                />
+                                {cls.name}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 学生选择 */}
+                      {students.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">选择学生</Label>
+                          <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2">
+                            {students.map((student) => (
+                              <label key={student.id} className="flex items-center gap-2 text-sm hover:bg-gray-50 p-1 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedStudents.includes(student.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedStudents([...selectedStudents, student.id])
+                                    } else {
+                                      setSelectedStudents(selectedStudents.filter(id => id !== student.id))
+                                    }
+                                  }}
+                                />
+                                {student.displayName || student.username}
+                                {student.classId && (
+                                  <span className="text-xs text-gray-500">
+                                    ({classes.find(c => c.id === student.classId)?.name})
+                                  </span>
+                                )}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 截止时间 */}
                       <div className="space-y-2">
-                        <Label htmlFor="pushDueAt">推送截止时间</Label>
+                        <Label htmlFor="pushDueAt">推送截止时间 *</Label>
                         <Input
                           id="pushDueAt"
                           type="datetime-local"
@@ -673,67 +808,163 @@ export default function ProblemsPage() {
                         />
                         <p className="text-xs text-gray-500">学生需要在此时间前完成打卡</p>
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                        💡 已选择 {selectedClasses.length} 个班级和 {selectedStudents.length} 位学生
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? <Loader2 className="animate-spin" /> : '发布题目'}
-              </Button>
+              {/* 操作按钮 */}
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={submitting}
+                  onClick={handleSaveDraft}
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : '保存为草稿'}
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1"
+                  disabled={submitting}
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : '发布题目'}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
 
-        {/* Problems List */}
+        {/* Problems List - 草稿箱和历史题目 */}
         {isHistoryOpen && (
           <Card className="md:col-span-2 relative z-10 bg-white">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <BookOpen className="w-5 h-5" />
-                历史题目
-              </CardTitle>
-              <button
-                type="button"
-                onClick={() => setIsHistoryOpen(false)}
-                className="h-7 w-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
-                aria-label="收起历史题目"
-              >
-                <ChevronRight className="h-4 w-4 text-gray-500" />
-              </button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-gray-500">加载中...</div>
-            ) : problems.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">暂无题目</div>
-            ) : (
-              <div className="space-y-4">
-                {problems.map((problem) => (
-                  <div key={problem.id} className="flex items-start gap-4 p-4 border rounded-lg hover:bg-gray-50">
-                    {problem.imageUrl ? (
-                      <img src={problem.imageUrl} alt="Problem" className="w-24 h-24 object-cover rounded-md bg-gray-100 flex-shrink-0" />
-                    ) : (
-                      <div className="w-24 h-24 bg-gray-100 rounded-md flex items-center justify-center flex-shrink-0 text-gray-400">
-                        <ImageIcon className="w-8 h-8" />
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BookOpen className="w-5 h-5" />
+                  我的题目
+                </CardTitle>
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryOpen(false)}
+                  className="h-7 w-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                  aria-label="收起题目列表"
+                >
+                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {loading ? (
+                <div className="text-center py-8 text-gray-500">加载中...</div>
+              ) : (
+                <>
+                  {/* 草稿箱区域 */}
+                  <div className="border-b pb-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsDraftsExpanded(!isDraftsExpanded)}
+                      className="w-full flex items-center justify-between p-3 bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors"
+                    >
+                      <span className="font-medium text-gray-900 flex items-center gap-2">
+                        📝 草稿箱
+                        <span className="text-sm text-gray-600">({drafts.length})</span>
+                      </span>
+                      {isDraftsExpanded ? (
+                        <ChevronLeft className="w-5 h-5 text-gray-500" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-500" />
+                      )}
+                    </button>
+                    
+                    {isDraftsExpanded && (
+                      <div className="mt-3 space-y-3">
+                        {drafts.length === 0 ? (
+                          <p className="text-center py-6 text-gray-500 text-sm">暂无草稿</p>
+                        ) : (
+                          drafts.map((problem: any) => (
+                            <div key={problem.id} className="flex items-start gap-4 p-4 border border-yellow-200 bg-yellow-50/30 rounded-lg hover:bg-yellow-50 transition-colors">
+                              {problem.imageUrl ? (
+                                <img src={problem.imageUrl} alt="Problem" className="w-20 h-20 object-cover rounded-md flex-shrink-0" />
+                              ) : (
+                                <div className="w-20 h-20 bg-gray-100 rounded-md flex items-center justify-center flex-shrink-0 text-gray-400">
+                                  <ImageIcon className="w-6 h-6" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <h4 className="font-semibold text-gray-900">{problem.date}</h4>
+                                  <span className="text-xs px-2 py-0.5 bg-yellow-200 text-yellow-800 rounded-full">
+                                    草稿
+                                  </span>
+                                </div>
+                                <p className="text-gray-700 text-sm line-clamp-2">{problem.content}</p>
+                                <p className="text-xs text-gray-500 mt-2">
+                                  创建于 {new Date(problem.createdAt).toLocaleString('zh-CN')}
+                                </p>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-semibold text-lg">{problem.date}</h4>
-                        <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                          {problem._count.submissions} 人提交
-                        </span>
-                      </div>
-                      <p className="text-gray-600 mt-1 text-sm line-clamp-2">{problem.content}</p>
-                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
+
+                  {/* 历史题目区域 */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setIsPublishedExpanded(!isPublishedExpanded)}
+                      className="w-full flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      <span className="font-medium text-gray-900 flex items-center gap-2">
+                        📚 已发布题目
+                        <span className="text-sm text-gray-600">({published.length})</span>
+                      </span>
+                      {isPublishedExpanded ? (
+                        <ChevronLeft className="w-5 h-5 text-gray-500" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-500" />
+                      )}
+                    </button>
+                    
+                    {isPublishedExpanded && (
+                      <div className="mt-3 space-y-3">
+                        {published.length === 0 ? (
+                          <p className="text-center py-6 text-gray-500 text-sm">暂无已发布题目</p>
+                        ) : (
+                          published.map((problem) => (
+                            <div key={problem.id} className="flex items-start gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                              {problem.imageUrl ? (
+                                <img src={problem.imageUrl} alt="Problem" className="w-20 h-20 object-cover rounded-md flex-shrink-0" />
+                              ) : (
+                                <div className="w-20 h-20 bg-gray-100 rounded-md flex items-center justify-center flex-shrink-0 text-gray-400">
+                                  <ImageIcon className="w-6 h-6" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <h4 className="font-semibold text-gray-900">{problem.date}</h4>
+                                  <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                                    {problem._count.submissions} 人提交
+                                  </span>
+                                </div>
+                                <p className="text-gray-700 text-sm line-clamp-2">{problem.content}</p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
           </Card>
         )}
         </div>

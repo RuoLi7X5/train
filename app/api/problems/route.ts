@@ -15,6 +15,10 @@ export async function GET() {
     const where: Prisma.ProblemWhereInput = {}
     
     if (session.user.role === 'STUDENT') {
+      // 学生可以看到：
+      // 1. 自己教练发布的所有非草稿题目
+      // 2. 所有其他教练的非草稿题目（通过主页访问）
+      // 3. 系统题目（authorId=null，兼容旧数据）
       const timeClause = {
         OR: [
           { publishAt: { lte: now } },
@@ -22,34 +26,26 @@ export async function GET() {
         ]
       }
 
-      // 学生可以看到：
-      // 1. 自己教练发布的 visibility=STUDENTS 的题目
-      // 2. 所有 visibility=COMMUNITY 的题目
-      // 3. 系统题目（authorId=null，兼容旧数据）
       if (session.user.coachId) {
         where.AND = [
           timeClause,
+          { isDraft: false }, // 只显示非草稿
           {
             OR: [
-              { authorId: session.user.coachId, visibility: 'STUDENTS' },
-              { visibility: 'COMMUNITY' },
-              { authorId: null } // 兼容旧数据
+              { authorId: session.user.coachId },
+              { authorId: null }
             ]
           }
         ]
       } else {
         where.AND = [
           timeClause,
-          {
-            OR: [
-              { visibility: 'COMMUNITY' },
-              { authorId: null } // 兼容旧数据
-            ]
-          }
+          { isDraft: false }, // 只显示非草稿
+          { authorId: null }
         ]
       }
     } else if (session.user.role === 'COACH') {
-      // 教练可以看到自己创建的所有题目（包括私有草稿）
+      // 教练可以看到自己创建的所有题目（包括草稿）
       where.authorId = session.user.id
     } else if (session.user.role === 'SUPER_ADMIN') {
       // 超级管理员可以看到所有题目
@@ -79,14 +75,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { publishAt, content, imageUrl, answerContent, answerImageUrl, answerReleaseHours, visibility, pushToStudents, pushDueAt, boardData, placementMode, firstPlayer, answerMoves } = await request.json()
+    const { publishAt, content, imageUrl, answerContent, answerImageUrl, answerReleaseHours, isDraft, pushToStudents, selectedClasses, selectedStudents, pushDueAt, boardData, placementMode, firstPlayer, answerMoves } = await request.json()
 
     if (!publishAt || !content) {
       return NextResponse.json({ message: '发布时间和内容必填' }, { status: 400 })
     }
-
-    // 验证 visibility 参数
-    const validVisibility = ['PRIVATE', 'STUDENTS', 'COMMUNITY'].includes(visibility) ? visibility : 'STUDENTS'
 
     const publishDate = new Date(publishAt)
     if (Number.isNaN(publishDate.getTime())) {
@@ -123,7 +116,7 @@ export async function POST(request: Request) {
         answerImage: answerImageUrl || null,
         answerReleaseDate: releaseDate,
         authorId: session.user.id,
-        visibility: validVisibility,
+        isDraft: isDraft === true,
         boardData: boardData || null,
         placementMode: placementMode || null,
         firstPlayer: firstPlayer || null,
@@ -132,8 +125,8 @@ export async function POST(request: Request) {
     })
 
     let pushedCount = 0
-    // 只有 visibility 为 STUDENTS 时才允许推送
-    if (pushToStudents && validVisibility === 'STUDENTS') {
+    // 处理推送：支持按班级和按学生推送
+    if (pushToStudents && !isDraft) {
       if (!pushDueAt) {
         return NextResponse.json({ message: '推送时必须设置截止时间' }, { status: 400 })
       }
@@ -142,16 +135,33 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: '截止时间格式无效' }, { status: 400 })
       }
 
-      const students = await prisma.user.findMany({
-        where: { role: 'STUDENT', coachId: session.user.id },
-        select: { id: true }
-      })
+      // 收集所有需要推送的学生ID
+      const targetStudentIds = new Set<number>()
 
-      if (students.length > 0) {
+      // 1. 添加选中的学生
+      if (selectedStudents && Array.isArray(selectedStudents)) {
+        selectedStudents.forEach((id: number) => targetStudentIds.add(id))
+      }
+
+      // 2. 添加选中班级的所有学生
+      if (selectedClasses && Array.isArray(selectedClasses) && selectedClasses.length > 0) {
+        const classStudents = await prisma.user.findMany({
+          where: {
+            role: 'STUDENT',
+            coachId: session.user.id,
+            classId: { in: selectedClasses }
+          },
+          select: { id: true }
+        })
+        classStudents.forEach((student) => targetStudentIds.add(student.id))
+      }
+
+      // 3. 创建推送记录
+      if (targetStudentIds.size > 0) {
         const result = await problemPushModel.createMany({
-          data: students.map((student) => ({
+          data: Array.from(targetStudentIds).map((studentId) => ({
             problemId: problem.id,
-            studentId: student.id,
+            studentId,
             coachId: session.user.id,
             dueAt: dueDate.toISOString()
           })),
