@@ -12,6 +12,10 @@ export default function Navbar({ user }: { user: any }) {
     await logoutAction()
   }
 
+  const handleToggleMenu = () => {
+    setShowUserMenu(!showUserMenu)
+  }
+
   const isCoachOrAdmin = user?.role === 'COACH' || user?.role === 'SUPER_ADMIN'
 
   return (
@@ -29,7 +33,7 @@ export default function Navbar({ user }: { user: any }) {
           </nav>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 relative">
           {/* 管理后台入口 (仅教练/管理员可见) */}
           {isCoachOrAdmin && (
             <Link
@@ -42,15 +46,18 @@ export default function Navbar({ user }: { user: any }) {
           )}
 
           {/* User Menu */}
-          <div className="relative">
+          <div className="relative z-50">
             <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 text-sm text-gray-600 hover:bg-gray-100 px-2 py-1 rounded-md transition-colors"
+              type="button"
+              onClick={handleToggleMenu}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:bg-gray-100 px-3 py-2 rounded-md transition-colors cursor-pointer"
+              aria-label="用户菜单"
+              aria-expanded={showUserMenu}
             >
               <User className="w-4 h-4" />
-              <div className="flex flex-col items-end leading-tight">
+              <div className="flex flex-col items-start leading-tight">
                 <span className="font-medium">{user?.displayName || user?.username}</span>
-                {user?.class && <span className="text-xs text-blue-600 bg-blue-50 px-1.5 rounded">{user.class.name}</span>}
+                {user?.class && <span className="text-xs text-blue-600 bg-blue-50 px-1.5 rounded mt-0.5">{user.class.name}</span>}
               </div>
             </button>
 
@@ -58,10 +65,11 @@ export default function Navbar({ user }: { user: any }) {
             {showUserMenu && (
               <>
                 <div 
-                  className="fixed inset-0 z-10" 
+                  className="fixed inset-0 z-40" 
                   onClick={() => setShowUserMenu(false)}
+                  aria-hidden="true"
                 />
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50">
                   <Link
                     href={`/u/${user?.id}`}
                     className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
@@ -80,11 +88,12 @@ export default function Navbar({ user }: { user: any }) {
                   </Link>
                   <div className="border-t border-gray-200 my-1" />
                   <button
+                    type="button"
                     onClick={() => {
                       setShowUserMenu(false)
                       handleLogout()
                     }}
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
                     退出登录
