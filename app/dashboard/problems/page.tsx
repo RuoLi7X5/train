@@ -44,8 +44,10 @@ export default function ProblemsPage() {
   const [classes, setClasses] = useState<ClassData[]>([])
   const [students, setStudents] = useState<StudentData[]>([])
   const [pushToStudents, setPushToStudents] = useState(false)
-  const [selectedClasses, setSelectedClasses] = useState<number[]>([])
-  const [selectedStudents, setSelectedStudents] = useState<number[]>([])
+  const [pushMode, setPushMode] = useState<'class' | 'individual'>('class') // 班级 or 个人
+  const [selectedClassId, setSelectedClassId] = useState<number | null>(null) // 单选班级
+  const [selectedStudents, setSelectedStudents] = useState<number[]>([]) // 多选学生
+  const [studentSearchQuery, setStudentSearchQuery] = useState('') // 学生搜索
   const [pushDueAt, setPushDueAt] = useState('')
   const boardSize = 19
   const [placementMode, setPlacementMode] = useState<PlacementMode>('ALTERNATE')
@@ -430,8 +432,10 @@ export default function ProblemsPage() {
     setAnswerContent('')
     setAnswerImageUrl('')
     setPushToStudents(false)
-    setSelectedClasses([])
+    setPushMode('class')
+    setSelectedClassId(null)
     setSelectedStudents([])
+    setStudentSearchQuery('')
     setPushDueAt('')
     setTrialMode(false)
     setTrialError('')
@@ -496,8 +500,12 @@ export default function ProblemsPage() {
         toast.showWarning('请设置推送截止时间')
         return
       }
-      if (selectedClasses.length === 0 && selectedStudents.length === 0) {
-        toast.showWarning('请选择要推送的班级或学生')
+      if (pushMode === 'class' && !selectedClassId) {
+        toast.showWarning('请选择要推送的班级')
+        return
+      }
+      if (pushMode === 'individual' && selectedStudents.length === 0) {
+        toast.showWarning('请至少选择一位学生')
         return
       }
     }
@@ -516,8 +524,8 @@ export default function ProblemsPage() {
           answerReleaseHours,
           isDraft: false,
           pushToStudents,
-          selectedClasses,
-          selectedStudents,
+          selectedClasses: pushMode === 'class' && selectedClassId ? [selectedClassId] : [],
+          selectedStudents: pushMode === 'individual' ? selectedStudents : [],
           pushDueAt: pushDueAt ? new Date(pushDueAt).toISOString() : undefined,
           boardData,
           placementMode,
@@ -550,13 +558,15 @@ export default function ProblemsPage() {
           <button
             type="button"
             onClick={() => setIsHistoryOpen(true)}
-            className="absolute top-0 right-0 h-full w-7 flex items-center justify-center bg-white border border-gray-200 rounded-l-full shadow-md hover:bg-gray-50"
+            className="fixed top-1/2 right-0 -translate-y-1/2 h-32 w-10 flex flex-col items-center justify-center gap-1 bg-gradient-to-l from-blue-500 to-blue-600 text-white rounded-l-xl shadow-2xl hover:from-blue-600 hover:to-blue-700 transition-all hover:w-12 z-50"
             aria-label="展开历史题目"
+            title="点击展开题目列表"
           >
-            <ChevronLeft className="h-4 w-4 text-gray-500" />
+            <ChevronLeft className="h-6 w-6" />
+            <span className="text-xs font-medium" style={{ writingMode: 'vertical-rl' }}>题目列表</span>
           </button>
         )}
-        <div className={`grid gap-6 ${isHistoryOpen ? 'md:grid-cols-3' : 'md:grid-cols-1'}`}>
+        <div className={`grid gap-6 transition-all ${isHistoryOpen ? 'md:grid-cols-3 mr-0' : 'md:grid-cols-1 mr-12'}`}>
         {/* Create Problem Form */}
         <Card className={isHistoryOpen ? 'md:col-span-1 h-fit' : 'md:col-span-1'}>
           <CardHeader>
@@ -729,89 +739,187 @@ export default function ProblemsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium text-gray-900">推送设置（可选）</h4>
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={pushToStudents}
-                        onChange={(e) => setPushToStudents(e.target.checked)}
+                        onChange={(e) => {
+                          setPushToStudents(e.target.checked)
+                          if (!e.target.checked) {
+                            setSelectedClassId(null)
+                            setSelectedStudents([])
+                            setStudentSearchQuery('')
+                          }
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                       启用推送到学生
                     </label>
                   </div>
                   
                   {pushToStudents && (
-                    <div className="space-y-4 pl-4 border-l-2 border-blue-200">
-                      {/* 班级选择 */}
-                      {classes.length > 0 && (
+                    <div className="space-y-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                      {/* 推送模式切换 */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-700">推送方式</Label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPushMode('class')
+                              setSelectedStudents([])
+                              setStudentSearchQuery('')
+                            }}
+                            className={`flex-1 py-2.5 px-4 rounded-lg font-medium text-sm transition-all ${
+                              pushMode === 'class'
+                                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg scale-105'
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 hover:border-blue-300'
+                            }`}
+                          >
+                            📚 班级推送
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPushMode('individual')
+                              setSelectedClassId(null)
+                            }}
+                            className={`flex-1 py-2.5 px-4 rounded-lg font-medium text-sm transition-all ${
+                              pushMode === 'individual'
+                                ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg scale-105'
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 hover:border-blue-300'
+                            }`}
+                          >
+                            👤 个人推送
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 班级模式 - 下拉选择单个班级 */}
+                      {pushMode === 'class' && (
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium">选择班级</Label>
-                          <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded-md p-2">
-                            {classes.map((cls) => (
-                              <label key={cls.id} className="flex items-center gap-2 text-sm hover:bg-gray-50 p-1 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedClasses.includes(cls.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedClasses([...selectedClasses, cls.id])
-                                    } else {
-                                      setSelectedClasses(selectedClasses.filter(id => id !== cls.id))
-                                    }
-                                  }}
-                                />
-                                {cls.name}
-                              </label>
-                            ))}
-                          </div>
+                          <Label htmlFor="classSelect" className="text-sm font-medium text-gray-700">选择班级 *</Label>
+                          {classes.length > 0 ? (
+                            <>
+                              <select
+                                id="classSelect"
+                                value={selectedClassId || ''}
+                                onChange={(e) => setSelectedClassId(e.target.value ? Number(e.target.value) : null)}
+                                className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                required
+                              >
+                                <option value="">请选择班级...</option>
+                                {classes.map((cls) => (
+                                  <option key={cls.id} value={cls.id}>
+                                    {cls.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {selectedClassId && (
+                                <p className="text-xs text-blue-700 bg-blue-100 p-2 rounded flex items-center gap-1">
+                                  <span className="text-base">✓</span>
+                                  已选择班级：<span className="font-semibold">{classes.find(c => c.id === selectedClassId)?.name}</span>
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded border border-amber-200">⚠️ 暂无班级，请先创建班级</p>
+                          )}
                         </div>
                       )}
 
-                      {/* 学生选择 */}
-                      {students.length > 0 && (
+                      {/* 个人模式 - 搜索+多选学生 */}
+                      {pushMode === 'individual' && (
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium">选择学生</Label>
-                          <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2">
-                            {students.map((student) => (
-                              <label key={student.id} className="flex items-center gap-2 text-sm hover:bg-gray-50 p-1 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedStudents.includes(student.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedStudents([...selectedStudents, student.id])
-                                    } else {
-                                      setSelectedStudents(selectedStudents.filter(id => id !== student.id))
-                                    }
-                                  }}
-                                />
-                                {student.displayName || student.username}
-                                {student.classId && (
-                                  <span className="text-xs text-gray-500">
-                                    ({classes.find(c => c.id === student.classId)?.name})
-                                  </span>
+                          <Label className="text-sm font-medium text-gray-700">选择学生 *</Label>
+                          {students.length > 0 ? (
+                            <>
+                              {/* 搜索框 */}
+                              <Input
+                                type="text"
+                                placeholder="🔍 搜索学生昵称、用户名或ID..."
+                                value={studentSearchQuery}
+                                onChange={(e) => setStudentSearchQuery(e.target.value)}
+                                className="bg-white border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                              {/* 学生列表 */}
+                              <div className="space-y-1 max-h-64 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white">
+                                {students
+                                  .filter((student) => {
+                                    if (!studentSearchQuery) return true
+                                    const query = studentSearchQuery.toLowerCase()
+                                    return (
+                                      student.username.toLowerCase().includes(query) ||
+                                      student.displayName?.toLowerCase().includes(query) ||
+                                      student.id.toString().includes(query)
+                                    )
+                                  })
+                                  .map((student) => (
+                                    <label
+                                      key={student.id}
+                                      className="flex items-center gap-2 text-sm hover:bg-blue-50 p-2 rounded cursor-pointer transition-colors group"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedStudents.includes(student.id)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setSelectedStudents([...selectedStudents, student.id])
+                                          } else {
+                                            setSelectedStudents(selectedStudents.filter((id) => id !== student.id))
+                                          }
+                                        }}
+                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <span className="font-medium text-gray-900 group-hover:text-blue-700">{student.displayName || student.username}</span>
+                                        {student.classId && (
+                                          <span className="ml-2 text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                                            {classes.find((c) => c.id === student.classId)?.name}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-gray-400 flex-shrink-0">ID:{student.id}</span>
+                                    </label>
+                                  ))}
+                                {students.filter((student) => {
+                                  if (!studentSearchQuery) return true
+                                  const query = studentSearchQuery.toLowerCase()
+                                  return (
+                                    student.username.toLowerCase().includes(query) ||
+                                    student.displayName?.toLowerCase().includes(query) ||
+                                    student.id.toString().includes(query)
+                                  )
+                                }).length === 0 && (
+                                  <p className="text-center py-6 text-gray-500 text-sm">未找到匹配的学生</p>
                                 )}
-                              </label>
-                            ))}
-                          </div>
+                              </div>
+                              {selectedStudents.length > 0 && (
+                                <p className="text-xs text-blue-700 bg-blue-100 p-2 rounded flex items-center gap-1">
+                                  <span className="text-base">✓</span>
+                                  已选择 <span className="font-semibold">{selectedStudents.length}</span> 位学生
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded border border-amber-200">⚠️ 暂无学生，请先添加学生</p>
+                          )}
                         </div>
                       )}
 
                       {/* 截止时间 */}
                       <div className="space-y-2">
-                        <Label htmlFor="pushDueAt">推送截止时间 *</Label>
+                        <Label htmlFor="pushDueAt" className="text-sm font-medium text-gray-700">推送截止时间 *</Label>
                         <Input
                           id="pushDueAt"
                           type="datetime-local"
                           value={pushDueAt}
                           onChange={(e) => setPushDueAt(e.target.value)}
                           required
+                          className="bg-white border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                         />
                         <p className="text-xs text-gray-500">学生需要在此时间前完成打卡</p>
                       </div>
-
-                      <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                        💡 已选择 {selectedClasses.length} 个班级和 {selectedStudents.length} 位学生
-                      </p>
                     </div>
                   )}
                 </div>
@@ -852,10 +960,11 @@ export default function ProblemsPage() {
                 <button
                   type="button"
                   onClick={() => setIsHistoryOpen(false)}
-                  className="h-7 w-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                  className="h-8 w-8 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 text-white flex items-center justify-center hover:from-blue-600 hover:to-blue-700 shadow-md transition-all hover:scale-110"
                   aria-label="收起题目列表"
+                  title="收起题目列表"
                 >
-                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                  <ChevronRight className="h-5 w-5" />
                 </button>
               </div>
             </CardHeader>
