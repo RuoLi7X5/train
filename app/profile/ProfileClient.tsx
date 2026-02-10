@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label } from '@/components/ui'
 import { User, KeyRound, Loader2, Save, BarChart, Settings, CheckCircle, ArrowLeft } from 'lucide-react'
+import { useToast } from '@/components/Toast'
 
 export default function ProfileClient({ user: initialUser }: { user: any }) {
+  const toast = useToast()
   const router = useRouter()
   const [user, setUser] = useState(initialUser)
   const [passwords, setPasswords] = useState({ new: '', confirm: '' })
@@ -17,7 +19,7 @@ export default function ProfileClient({ user: initialUser }: { user: any }) {
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
     if (passwords.new !== passwords.confirm) {
-      alert('两次输入的新密码不一致')
+      toast.showError('两次输入的新密码不一致')
       return
     }
 
@@ -30,14 +32,14 @@ export default function ProfileClient({ user: initialUser }: { user: any }) {
       })
 
       if (res.ok) {
-        alert('密码修改成功')
+        toast.showSuccess('密码修改成功')
         setPasswords({ new: '', confirm: '' })
       } else {
         const data = await res.json()
-        alert(data.message || '修改失败')
+        toast.showError(data.message || '修改失败')
       }
     } catch (e) {
-      alert('修改失败')
+      toast.showError('修改失败')
     } finally {
       setLoading(false)
     }
@@ -59,11 +61,12 @@ export default function ProfileClient({ user: initialUser }: { user: any }) {
         const data = await res.json()
         setUser({ ...user, displayName: data.user.displayName })
         setIsEditingName(false)
+        toast.showSuccess('昵称修改成功')
       } else {
-        alert('修改失败')
+        toast.showError('修改失败')
       }
     } catch (e) {
-      alert('修改失败')
+      toast.showError('修改失败')
     } finally {
       setNameLoading(false)
     }

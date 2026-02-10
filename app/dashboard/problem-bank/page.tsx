@@ -27,7 +27,7 @@ export default async function ProblemBankPage() {
         }
       }
     }
-  } as any)
+  })
 
   const unassigned = await prisma.problem.findMany({
     where: { authorId: null },
@@ -40,7 +40,7 @@ export default async function ProblemBankPage() {
       imageUrl: true,
       _count: { select: { submissions: true } }
     }
-  } as any)
+  })
 
   const formatPublishAt = (publishAt: Date | null, date: string) => {
     if (!publishAt) return date

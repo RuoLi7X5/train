@@ -83,6 +83,10 @@ model User {
   comments    Comment[]
   studentPushes ProblemPush[] @relation("StudentPushes")
   coachPushes   ProblemPush[] @relation("CoachPushes")
+  
+  @@index([role, status])
+  @@index([coachId])
+  @@index([classId])
 }
 
 model Problem {
@@ -117,6 +121,9 @@ model Problem {
 
   // Unique constraint: A coach can only have one problem per day
   @@unique([date, authorId])
+  @@index([authorId])
+  @@index([publishAt])
+  @@index([date])
 }
 
 model Submission {
@@ -139,6 +146,11 @@ model Submission {
   
   problemId Int
   problem   Problem  @relation(fields: [problemId], references: [id])
+  
+  @@index([userId, problemId])
+  @@index([problemId, status])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Comment {
@@ -169,4 +181,7 @@ model ProblemPush {
   updatedAt DateTime   @updatedAt
 
   @@unique([problemId, studentId])
+  @@index([studentId, status])
+  @@index([coachId])
+  @@index([dueAt])
 }

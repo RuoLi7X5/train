@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button, Label, Input, Card, CardContent } from '@/components/ui'
 import { Upload, Loader2 } from 'lucide-react'
 import { applyMove, createEmptyBoard, type BoardPoint, type BoardState, type StoneColor } from '@/lib/go'
+import { useToast } from '@/components/Toast'
 
 type BoardStone = { x: number; y: number; color: StoneColor }
 type BoardData = { size: number; stones: BoardStone[] }
@@ -98,6 +99,7 @@ export default function SubmitForm({
   boardData?: BoardData | null
   firstPlayer?: FirstPlayer | null
 }) {
+  const toast = useToast()
   const [content, setContent] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -194,10 +196,10 @@ export default function SubmitForm({
       if (data.success) {
         setImageUrl(data.url)
       } else {
-        alert('图片上传失败')
+        toast.showError('图片上传失败')
       }
     } catch (error) {
-      alert('图片上传出错')
+      toast.showError('图片上传出错')
     } finally {
       setUploading(false)
     }
@@ -206,7 +208,7 @@ export default function SubmitForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!content && !imageUrl && moves.length === 0) {
-        alert('请至少填写文字或上传图片')
+        toast.showWarning('请至少填写文字或上传图片')
         return
     }
     
@@ -227,12 +229,13 @@ export default function SubmitForm({
       })
 
       if (res.ok) {
+        toast.showSuccess('提交成功')
         router.refresh()
       } else {
-        alert('提交失败')
+        toast.showError('提交失败')
       }
     } catch (error) {
-      alert('提交失败')
+      toast.showError('提交失败')
     } finally {
       setSubmitting(false)
     }

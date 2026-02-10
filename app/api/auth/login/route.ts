@@ -2,17 +2,20 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { compare, hash } from 'bcrypt-ts'
 import { login } from '@/lib/auth'
+import { Role, UserStatus } from '@prisma/client'
+import { successResponse, errorResponse, validationErrorResponse, unauthorizedResponse, forbiddenResponse } from '@/lib/api-response'
+import { logger } from '@/lib/logger'
+import { withPerformanceMonitoring } from '@/lib/monitoring'
 
-export async function POST(request: Request) {
+async function handleLogin(request: Request) {
   try {
+    logger.apiRequest('POST', '/api/auth/login')
+    
     const body = await request.json()
     const { username, password } = body
 
     if (!username || !password) {
-      return NextResponse.json(
-        { message: '用户名和密码不能为空' },
-        { status: 400 }
-      )
+      return validationErrorResponse('用户名和密码不能为空')
     }
 
     // 查找用户
@@ -22,11 +25,11 @@ export async function POST(request: Request) {
     })
 
     // 自动修复 ruoli 权限 (如果用户存在但角色被重置，且是 ruoli)
-    if (user && username === 'ruoli' && (user as any).role !== 'SUPER_ADMIN') {
+    if (user && username === 'ruoli' && user.role !== 'SUPER_ADMIN') {
        try {
          user = await prisma.user.update({
            where: { id: user.id },
-           data: { role: 'SUPER_ADMIN' } as any,
+           data: { role: Role.SUPER_ADMIN },
            include: { class: true }
          })
          console.log('自动修复管理员权限: ruoli -> SUPER_ADMIN')
@@ -43,10 +46,10 @@ export async function POST(request: Request) {
         data: {
           username: 'ruoli',
           password: hashedPassword,
-          role: 'SUPER_ADMIN', // 初始化为超级管理员
-          status: 'ACTIVE',
+          role: Role.SUPER_ADMIN, // 初始化为超级管理员
+          status: UserStatus.ACTIVE,
           displayName: '超级管理员',
-        } as any,
+        },
         include: {
           class: true,
         },
@@ -55,35 +58,27 @@ export async function POST(request: Request) {
     }
 
     if (!user) {
-      return NextResponse.json(
-        { message: '用户不存在' },
-        { status: 401 }
-      )
+      logger.warn('Login failed: user not found', { username })
+      return unauthorizedResponse('用户不存在')
     }
 
     // 检查用户状态
-    if ((user as any).status === 'PENDING') {
-      return NextResponse.json(
-        { message: '账号待审核或未激活，请联系教练' },
-        { status: 403 }
-      )
+    if (user.status === UserStatus.PENDING) {
+      logger.warn('Login failed: account pending', { username })
+      return forbiddenResponse('账号待审核或未激活，请联系教练')
     }
     
-    if ((user as any).status === 'DISABLED') {
-        return NextResponse.json(
-          { message: '账号已被禁用，请联系管理员' },
-          { status: 403 }
-        )
+    if (user.status === UserStatus.DISABLED) {
+      logger.warn('Login failed: account disabled', { username })
+      return forbiddenResponse('账号已被禁用，请联系管理员')
     }
 
     // 验证密码
     const isValid = await compare(password, user.password)
 
     if (!isValid) {
-      return NextResponse.json(
-        { message: '密码错误' },
-        { status: 401 }
-      )
+      logger.warn('Login failed: invalid password', { username })
+      return unauthorizedResponse('密码错误')
     }
 
     // 登录成功，设置 Session
@@ -91,31 +86,21 @@ export async function POST(request: Request) {
     const userWithoutPassword = {
       id: user.id,
       username: user.username,
-      role: (user as any).role,
+      role: user.role,
       displayName: user.displayName,
-      class: (user as any).class,
-      coachId: (user as any).coachId,
-      status: (user as any).status
+      class: user.class,
+      coachId: user.coachId,
+      status: user.status
     }
 
     await login(userWithoutPassword)
 
-    return NextResponse.json({ success: true, user: userWithoutPassword })
+    logger.info('User logged in successfully', { username, role: user.role })
+    return successResponse({ user: userWithoutPassword }, '登录成功')
   } catch (error) {
-    console.error('Login error raw:', error);
-    
-    let errorMessage = '未知错误';
-    try {
-      errorMessage = JSON.stringify(error, Object.getOwnPropertyNames(error));
-    } catch (e) {
-      errorMessage = String(error);
-    }
-
-    console.error('Login error stringified:', errorMessage);
-
-    return NextResponse.json(
-      { message: `服务器内部错误: ${errorMessage}` },
-      { status: 500 }
-    )
+    logger.error('Login error', error as Error, { username: request.headers.get('username') })
+    return errorResponse('登录失败，请稍后重试', 500, error)
   }
 }
+
+export const POST = withPerformanceMonitoring(handleLogin, '/api/auth/login')

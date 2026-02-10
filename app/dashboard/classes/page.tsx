@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label } from '@/components/ui'
 import { Plus, Users, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import { useToast } from '@/components/Toast'
 
 type ClassData = {
   id: number
@@ -14,6 +15,7 @@ type ClassData = {
 }
 
 export default function ClassesPage() {
+  const toast = useToast()
   const [classes, setClasses] = useState<ClassData[]>([])
   const [loading, setLoading] = useState(true)
   const [newClassName, setNewClassName] = useState('')
@@ -47,8 +49,9 @@ export default function ClassesPage() {
       if (res.ok) {
         setNewClassName('')
         fetchClasses()
+        toast.showSuccess('班级创建成功')
       } else {
-        alert('创建失败，可能是班级名称重复')
+        toast.showError('创建失败，可能是班级名称重复')
       }
     } finally {
       setCreating(false)

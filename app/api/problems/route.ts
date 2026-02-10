@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma, { problemPushModel } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export async function GET() {
   const session = await getSession()
@@ -11,7 +12,7 @@ export async function GET() {
   try {
     const now = new Date()
     const today = now.toISOString().split('T')[0]
-    const where: any = {}
+    const where: Prisma.ProblemWhereInput = {}
     
     if (session.user.role === 'STUDENT') {
       const timeClause = {
@@ -49,9 +50,10 @@ export async function GET() {
           select: { submissions: true }
         }
       }
-    } as any)
+    })
     return NextResponse.json(problems)
   } catch (error) {
+    console.error('Error fetching problems:', error)
     return NextResponse.json({ message: 'Error fetching problems' }, { status: 500 })
   }
 }
@@ -99,17 +101,17 @@ export async function POST(request: Request) {
         date,
         publishAt: publishDate.toISOString(),
         content,
-        imageUrl,
-        answerContent,
-        answerImage: answerImageUrl,
+        imageUrl: imageUrl || null,
+        answerContent: answerContent || null,
+        answerImage: answerImageUrl || null,
         answerReleaseDate: releaseDate,
         authorId: session.user.id,
-        boardData,
-        placementMode,
-        firstPlayer,
-        answerMoves
+        boardData: boardData || null,
+        placementMode: placementMode || null,
+        firstPlayer: firstPlayer || null,
+        answerMoves: answerMoves || null
       }
-    } as any)
+    })
 
     let pushedCount = 0
     if (pushToStudents) {
@@ -127,7 +129,7 @@ export async function POST(request: Request) {
       })
 
       if (students.length > 0) {
-        const result = await (prisma as any).problemPush.createMany({
+        const result = await problemPushModel.createMany({
           data: students.map((student) => ({
             problemId: problem.id,
             studentId: student.id,

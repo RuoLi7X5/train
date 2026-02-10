@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '@/compo
 import { Users, UserPlus, UserMinus, Search, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { useToast } from '@/components/Toast'
 
 type Student = {
   id: number
@@ -13,6 +14,7 @@ type Student = {
 }
 
 export default function ClassDetailPage() {
+  const toast = useToast()
   const params = useParams()
   const classId = params.id as string
   
@@ -57,10 +59,10 @@ export default function ClassDetailPage() {
         setShowAddModal(false)
         fetchData()
       } else {
-        alert('操作失败')
+        toast.showError('操作失败')
       }
     } catch (error) {
-      alert('操作出错')
+      toast.showError('操作出错')
     }
   }
 

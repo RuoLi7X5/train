@@ -20,3 +20,9 @@ const prisma = globalThis.prisma ?? prismaClientSingleton()
 export default prisma
 
 if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma
+
+/**
+ * 类型安全的 ProblemPush 访问
+ * 使用此对象代替 (prisma as any).problemPush
+ */
+export const problemPushModel = prisma.problemPush as any

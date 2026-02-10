@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma, { problemPushModel } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
+import { Role } from '@prisma/client'
 
 export async function GET(request: Request) {
   const session = await getSession()
@@ -13,7 +14,11 @@ export async function GET(request: Request) {
   const status = searchParams.get('status')
   // 管理员和教练逻辑
   if (session.user.role === 'SUPER_ADMIN' || session.user.role === 'COACH') {
-    const where: any = {}
+    const where: {
+      status?: string
+      problemId?: number
+      problem?: { authorId: number }
+    } = {}
     if (status && status !== 'ALL') where.status = status
     if (problemId) where.problemId = parseInt(problemId)
     
@@ -35,7 +40,7 @@ export async function GET(request: Request) {
         gradedBy: {
           select: { id: true, username: true, displayName: true }
         }
-      } as any,
+      },
       orderBy: { createdAt: 'desc' }
     })
     return NextResponse.json(submissions)
@@ -78,8 +83,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Problem ID required' }, { status: 400 })
     }
 
-    const prismaPush = (prisma as any).problemPush
-    const push = await prismaPush.findFirst({
+    const push = await problemPushModel.findFirst({
       where: {
         studentId: session.user.id,
         problemId: pId
@@ -91,7 +95,7 @@ export async function POST(request: Request) {
     }
 
     if (push?.status === 'ACTIVE' && push.dueAt && new Date() > push.dueAt) {
-      await prismaPush.update({
+      await problemPushModel.update({
         where: { id: push.id },
         data: { status: 'EXPIRED' }
       })
@@ -121,17 +125,17 @@ export async function POST(request: Request) {
       data: {
         userId: session.user.id,
         problemId: pId,
-        content,
-        imageUrl,
+        content: content || null,
+        imageUrl: imageUrl || null,
         moves: normalizedMoves || undefined,
         status: 'PENDING',
-        elapsedSeconds: Number.isFinite(Number(elapsedSeconds)) ? Math.max(0, Math.floor(Number(elapsedSeconds))) : undefined,
+        elapsedSeconds: Number.isFinite(Number(elapsedSeconds)) ? Math.max(0, Math.floor(Number(elapsedSeconds))) : null,
         isTimeout: Boolean(isTimeout)
-      } as any
+      }
     })
 
     if (push?.status === 'ACTIVE') {
-      await prismaPush.update({
+      await problemPushModel.update({
         where: { id: push.id },
         data: { status: 'COMPLETED' }
       })

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button, Accordion, AccordionContent, AccordionItem, AccordionTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Label } from '@/components/ui'
 import { User, Search, KeyRound, UserMinus, ShieldAlert, MoreHorizontal, CheckCircle, Ban, Trash2, RefreshCcw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useToast } from '@/components/Toast'
 
 type UserData = {
   id: number
@@ -18,6 +19,7 @@ type CoachGroup = {
   id: number
   username: string
   displayName: string | null
+  createdAt?: string
   students: UserData[]
 }
 
@@ -35,6 +37,7 @@ const fetcher = (url: string) => fetch(url).then(async (res) => {
 })
 
 export default function SuperAdminStudentsClient() {
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
 
@@ -108,8 +111,8 @@ export default function SuperAdminStudentsClient() {
         : b.students.length - a.students.length;
     }
     if (key === 'createdAt') {
-      const dateA = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
-      const dateB = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return direction === 'asc' ? dateA - dateB : dateB - dateA;
     }
     return 0;
@@ -121,42 +124,48 @@ export default function SuperAdminStudentsClient() {
 
   // --- Action Handlers ---
   const handleUpdateStatus = async (userId: number, username: string, newStatus: string) => {
-    if (!confirm(`确定要${newStatus === 'DISABLED' ? '禁用' : '激活'}用户 ${username} 吗？`)) return
-
-    try {
-      const res = await fetch(`/api/users/${userId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      })
-      if (res.ok) {
-        alert('操作成功')
-        mutate() // SWR Refresh
-      } else {
-        alert('操作失败')
+    toast.confirm(
+      `确定要${newStatus === 'DISABLED' ? '禁用' : '激活'}用户 ${username} 吗？`,
+      async () => {
+        try {
+          const res = await fetch(`/api/users/${userId}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+          })
+          if (res.ok) {
+            toast.showSuccess('操作成功')
+            mutate() // SWR Refresh
+          } else {
+            toast.showError('操作失败')
+          }
+        } catch (error) {
+          toast.showError('操作失败')
+        }
       }
-    } catch (error) {
-      alert('操作失败')
-    }
+    )
   }
 
   const handleDeleteStudent = async (userId: number, username: string) => {
-    if (!confirm(`警告：确定要删除用户 ${username} 吗？此操作不可逆！\n\n如果该用户有做题记录，删除可能会失败。建议先禁用。`)) return
-
-    try {
-      const res = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE',
-      })
-      if (res.ok) {
-        alert('删除成功')
-        mutate() // SWR Refresh
-      } else {
-        const data = await res.json()
-        alert(data.error || '删除失败')
+    toast.confirm(
+      `警告：确定要删除用户 ${username} 吗？此操作不可逆！\n\n如果该用户有做题记录，删除可能会失败。建议先禁用。`,
+      async () => {
+        try {
+          const res = await fetch(`/api/users/${userId}`, {
+            method: 'DELETE',
+          })
+          if (res.ok) {
+            toast.showSuccess('删除成功')
+            mutate() // SWR Refresh
+          } else {
+            const data = await res.json()
+            toast.showError(data.error || '删除失败')
+          }
+        } catch (error) {
+          toast.showError('删除失败')
+        }
       }
-    } catch (error) {
-      alert('删除失败')
-    }
+    )
   }
 
   const [resetTarget, setResetTarget] = useState<{ id: number, username: string } | null>(null)
@@ -172,15 +181,15 @@ export default function SuperAdminStudentsClient() {
         body: JSON.stringify({ password: newPassword })
       })
       if (res.ok) {
-        alert('密码重置成功')
+        toast.showError('密码重置成功')
         setIsResetDialogOpen(false)
         setNewPassword('')
         setResetTarget(null)
       } else {
-        alert('重置失败')
+        toast.showError('重置失败')
       }
     } catch (error) {
-      alert('重置失败')
+      toast.showError('重置失败')
     }
   }
 
@@ -285,7 +294,7 @@ export default function SuperAdminStudentsClient() {
                             {coach.displayName || '-'}
                           </div>
                           <div className="col-span-3 text-gray-500">
-                            {(coach as any).createdAt ? new Date((coach as any).createdAt).toLocaleDateString() : '-'}
+                            {coach.createdAt ? new Date(coach.createdAt).toLocaleDateString() : '-'}
                           </div>
                           <div className="col-span-3 flex justify-end pr-4">
                             <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">

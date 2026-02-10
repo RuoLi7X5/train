@@ -3,17 +3,16 @@ import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui'
 import { Button } from '@/components/ui'
 import { Calendar, CheckCircle, ArrowRight, XCircle, Clock } from 'lucide-react'
-import prisma from '@/lib/prisma'
+import prisma, { problemPushModel } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 
 export default async function StudentHomePage() {
   const session = await getSession()
   const now = new Date()
-  const prismaPush = (prisma as any).problemPush
 
   let push = null
   if (session?.user?.id) {
-    push = await prismaPush.findFirst({
+    push = await problemPushModel.findFirst({
       where: {
         studentId: session.user.id,
         status: { in: ['ACTIVE', 'EXPIRED'] }
@@ -27,7 +26,7 @@ export default async function StudentHomePage() {
     })
 
     if (push?.status === 'ACTIVE' && push.dueAt && now > push.dueAt) {
-      push = await prismaPush.update({
+      push = await problemPushModel.update({
         where: { id: push.id },
         data: { status: 'EXPIRED' },
         include: {

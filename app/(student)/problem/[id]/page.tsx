@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma, { problemPushModel } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui'
@@ -6,11 +6,32 @@ import { Calendar, CheckCircle, FileText } from 'lucide-react'
 import SubmitForm from './SubmitForm'
 import CommentsSection from '@/components/CommentsSection'
 import SubmissionHistory from './SubmissionHistory'
+import { Problem } from '@prisma/client'
 
 type StoneColor = 'B' | 'W'
 type BoardStone = { x: number; y: number; color: StoneColor }
 type BoardData = { size: number; stones: BoardStone[] }
 type Viewport = { minX: number; maxX: number; minY: number; maxY: number }
+type FirstPlayer = 'BLACK' | 'WHITE'
+
+// 扩展的 Problem 类型，包含棋盘数据
+type ProblemWithBoard = Problem & {
+  boardData?: BoardData | null
+  firstPlayer?: FirstPlayer | null
+}
+
+// Submission 类型兼容 SubmissionHistory 组件
+type SubmissionForDisplay = {
+  id: number
+  content: string | null
+  imageUrl: string | null
+  status: string
+  feedback: string | null
+  createdAt: string
+  moves?: { x: number; y: number }[] | null
+  elapsedSeconds?: number | null
+  isTimeout?: boolean | null
+}
 
 type Props = {
   params: Promise<{ id: string }>
@@ -227,17 +248,17 @@ export default async function ProblemPage({ params }: Props) {
   const session = await getSession()
   const problem = await prisma.problem.findUnique({
     where: { id: problemId }
-  })
-  const prismaPush = (prisma as any).problemPush
+  }) as ProblemWithBoard | null
 
   if (!problem) return notFound()
-  const boardData = (problem as any).boardData as BoardData | null | undefined
-  const firstPlayer = (problem as any).firstPlayer as 'BLACK' | 'WHITE' | null | undefined
+  
+  const boardData = problem.boardData
+  const firstPlayer = problem.firstPlayer
 
   const now = new Date()
   let push = null
   if (session?.user?.id) {
-    push = await prismaPush.findFirst({
+    push = await problemPushModel.findFirst({
       where: {
         studentId: session.user.id,
         problemId: problemId
@@ -245,7 +266,7 @@ export default async function ProblemPage({ params }: Props) {
     })
 
     if (push?.status === 'ACTIVE' && push.dueAt && now > push.dueAt) {
-      push = await prismaPush.update({
+      push = await problemPushModel.update({
         where: { id: push.id },
         data: { status: 'EXPIRED' }
       })
@@ -253,17 +274,30 @@ export default async function ProblemPage({ params }: Props) {
   }
 
   // Get all submissions for this user
-  let submissions: any[] = []
+  let submissions: SubmissionForDisplay[] = []
   let isCorrect = false
   
   if (session) {
-    submissions = await prisma.submission.findMany({
+    const rawSubmissions = await prisma.submission.findMany({
       where: {
         userId: session.user.id,
         problemId: problemId
       },
       orderBy: { createdAt: 'desc' }
     })
+    
+    // Convert Date to string for component compatibility
+    submissions = rawSubmissions.map(s => ({
+      id: s.id,
+      content: s.content,
+      imageUrl: s.imageUrl,
+      status: s.status,
+      feedback: s.feedback,
+      createdAt: s.createdAt.toISOString(),
+      moves: s.moves as { x: number; y: number }[] | null,
+      elapsedSeconds: s.elapsedSeconds,
+      isTimeout: s.isTimeout
+    }))
     
     isCorrect = submissions.some(s => s.status === 'CORRECT')
   }

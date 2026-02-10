@@ -28,7 +28,7 @@ export async function GET() {
           }
         }
       }
-    } as any)
+    })
 
     const unassigned = await prisma.problem.findMany({
       where: { authorId: null },
@@ -42,10 +42,11 @@ export async function GET() {
         answerReleaseDate: true,
         _count: { select: { submissions: true } }
       }
-    } as any)
+    })
 
     return NextResponse.json({ coaches, unassigned })
   } catch (error) {
+    console.error('Error fetching bank:', error)
     return NextResponse.json({ message: 'Error fetching bank' }, { status: 500 })
   }
 }

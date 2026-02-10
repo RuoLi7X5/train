@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui'
 import { Plus, User, Loader2, KeyRound, UserMinus, Search, UserPlus, MoreHorizontal, CheckCircle, Ban, Trash2, RefreshCcw, AlertCircle, Check, X } from 'lucide-react'
+import { useToast } from '@/components/Toast'
 
 type UserData = {
   id: number
@@ -30,6 +31,8 @@ const fetcher = (url: string) => fetch(url).then(async (res) => {
 })
 
 export default function StudentsClient({ userRole, userId }: StudentsClientProps) {
+  const toast = useToast()
+  
   // Main List SWR
   const { data: usersData, error: usersError, isLoading: isUsersLoading, mutate: mutateMainList } = useSWR<UserData[]>('/api/users', fetcher, {
     revalidateOnFocus: false,
@@ -95,10 +98,10 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
         setShowConfirm(true)
         mutateMainList() // Refresh main list to show PENDING users
       } else {
-        alert(data.message || '生成失败')
+        toast.showError(data.message || '生成失败')
       }
     } catch (error) {
-      alert('生成失败')
+      toast.showError('生成失败')
     } finally {
       setIsAdding(false)
     }
@@ -120,9 +123,9 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
 
       if (res.ok) {
         if (action === 'confirm') {
-          alert('账号已激活')
+          toast.showSuccess('账号已激活')
         } else {
-          alert('账号已释放')
+          toast.showSuccess('账号已释放')
         }
         setGeneratedUsers([])
         setShowConfirm(false)
@@ -130,10 +133,10 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
         mutateMainList() // Refresh main list
       } else {
         const data = await res.json()
-        alert(data.message || '操作失败')
+        toast.showError(data.message || '操作失败')
       }
     } catch (error) {
-      alert('操作失败')
+      toast.showError('操作失败')
     } finally {
       setIsAdding(false)
     }
@@ -146,16 +149,16 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
       const res = await fetch(`/api/users/${selectedSearchUser}/bind`, { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        alert('添加成功')
+        toast.showSuccess('添加成功')
         setSearchQuery('')
         setSelectedSearchUser(null)
         mutateMainList() // Refresh main list
         mutateSearchList() // Refresh search results (remove bound user)
       } else {
-        alert(data.message || '添加失败')
+        toast.showError(data.message || '添加失败')
       }
     } catch (e) {
-      alert('添加失败')
+      toast.showError('添加失败')
     } finally {
       setIsAdding(false)
     }
@@ -171,78 +174,87 @@ export default function StudentsClient({ userRole, userId }: StudentsClientProps
         body: JSON.stringify({ password: newPassword })
       })
       if (res.ok) {
-        alert('密码重置成功')
+        toast.showSuccess('密码重置成功')
         setIsResetDialogOpen(false)
         setNewPassword('')
         setSelectedUser(null)
       } else {
         const data = await res.json()
-        alert(data.message || '重置失败')
+        toast.showError(data.message || '重置失败')
       }
     } catch (error) {
-      alert('重置失败')
+      toast.showError('重置失败')
     } finally {
       setIsResetting(false)
     }
   }
 
   const handleUnbind = async (user: UserData) => {
-    if (!confirm(`确定要移除学生 ${user.displayName || user.username} 吗？\n该账号将不再归属于您，但不会被删除。`)) return
-
-    try {
-      const res = await fetch(`/api/users/${user.id}/unbind`, {
-        method: 'POST'
-      })
-      if (res.ok) {
-        alert('移除成功')
-        mutateMainList()
-      } else {
-        const data = await res.json()
-        alert(data.message || '移除失败')
+    toast.confirm(
+      `确定要移除学生 ${user.displayName || user.username} 吗？\n该账号将不再归属于您，但不会被删除。`,
+      async () => {
+        try {
+          const res = await fetch(`/api/users/${user.id}/unbind`, {
+            method: 'POST'
+          })
+          if (res.ok) {
+            toast.showSuccess('移除成功')
+            mutateMainList()
+          } else {
+            const data = await res.json()
+            toast.showError(data.message || '移除失败')
+          }
+        } catch (error) {
+          toast.showError('移除失败')
+        }
       }
-    } catch (error) {
-      alert('移除失败')
-    }
+    )
   }
 
   const handleUpdateStatus = async (user: UserData, newStatus: string) => {
-    if (!confirm(`确定要${newStatus === 'DISABLED' ? '禁用' : '激活'}用户 ${user.username} 吗？`)) return
-
-    try {
-      const res = await fetch(`/api/users/${user.id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      })
-      if (res.ok) {
-        alert('操作成功')
-        mutateMainList()
-      } else {
-        const data = await res.json()
-        alert(data.message || '操作失败')
+    toast.confirm(
+      `确定要${newStatus === 'DISABLED' ? '禁用' : '激活'}用户 ${user.username} 吗？`,
+      async () => {
+        try {
+          const res = await fetch(`/api/users/${user.id}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+          })
+          if (res.ok) {
+            toast.showSuccess('操作成功')
+            mutateMainList()
+          } else {
+            const data = await res.json()
+            toast.showError(data.message || '操作失败')
+          }
+        } catch (error) {
+          toast.showError('操作失败')
+        }
       }
-    } catch (error) {
-      alert('操作失败')
-    }
+    )
   }
 
   const handleDeleteStudent = async (user: UserData) => {
-    if (!confirm(`警告：确定要彻底删除学生 ${user.username} 吗？此操作不可逆！\n\n如果该账号有做题记录，删除可能会失败。建议先禁用或移除。`)) return
-
-    try {
-      const res = await fetch(`/api/users/${user.id}`, {
-        method: 'DELETE',
-      })
-      if (res.ok) {
-        alert('删除成功')
-        mutateMainList()
-      } else {
-        const data = await res.json()
-        alert(data.error || '删除失败')
+    toast.confirm(
+      `警告：确定要彻底删除学生 ${user.username} 吗？此操作不可逆！\n\n如果该账号有做题记录，删除可能会失败。建议先禁用或移除。`,
+      async () => {
+        try {
+          const res = await fetch(`/api/users/${user.id}`, {
+            method: 'DELETE',
+          })
+          if (res.ok) {
+            toast.showSuccess('删除成功')
+            mutateMainList()
+          } else {
+            const data = await res.json()
+            toast.showError(data.error || '删除失败')
+          }
+        } catch (error) {
+          toast.showError('删除失败')
+        }
       }
-    } catch (error) {
-      alert('删除失败')
-    }
+    )
   }
 
   const pageTitle = isSuperAdmin ? '教练账号生成' : '学生账号管理'

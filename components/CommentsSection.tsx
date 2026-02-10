@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button, Input, Label } from '@/components/ui'
 import { Send, User, Image as ImageIcon, Loader2, Smile } from 'lucide-react'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
+import { useToast } from '@/components/Toast'
 
 type Comment = {
   id: number
@@ -17,6 +18,7 @@ type Comment = {
 }
 
 export default function CommentsSection({ problemId }: { problemId: number }) {
+  const toast = useToast()
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -50,10 +52,10 @@ export default function CommentsSection({ problemId }: { problemId: number }) {
       if (data.success) {
         setImageUrl(data.url)
       } else {
-        alert('图片上传失败')
+        toast.showError('图片上传失败')
       }
     } catch (error) {
-      alert('图片上传出错')
+      toast.showError('图片上传出错')
     } finally {
       setUploading(false)
     }

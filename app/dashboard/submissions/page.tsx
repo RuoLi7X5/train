@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, Button, Label } from '@/components/ui'
 import { CheckSquare, ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Save, History } from 'lucide-react'
 import { applyMove, createEmptyBoard, type BoardPoint, type BoardState, type StoneColor } from '@/lib/go'
+import { useToast } from '@/components/Toast'
 
 type Submission = {
   id: number
@@ -104,6 +105,7 @@ const buildBoardAtStep = (
 }
 
 export default function SubmissionsPage() {
+  const toast = useToast()
   const [groupedSubmissions, setGroupedSubmissions] = useState<GroupedSubmission[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'ALL' | 'PENDING'>('PENDING')
@@ -209,11 +211,12 @@ export default function SubmissionsPage() {
 
       if (res.ok) {
         fetchSubmissions() // Refresh to update status
+        toast.showSuccess('批改保存成功')
       } else {
-        alert('保存失败')
+        toast.showError('保存失败')
       }
     } catch (error) {
-      alert('保存失败')
+      toast.showError('保存失败')
     } finally {
       setSavingId(null)
     }

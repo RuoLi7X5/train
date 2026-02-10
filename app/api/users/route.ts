@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { hash } from 'bcrypt-ts'
 import { getSession } from '@/lib/auth'
+import { Role, UserStatus } from '@prisma/client'
 
 export async function GET(request: Request) {
   const session = await getSession()
@@ -172,9 +173,9 @@ export async function POST(request: Request) {
         username,
         password: hashedPassword,
         displayName: displayName || username,
-        role: newRole as any, // Cast to avoid build error if types not ready
+        role: newRole as Role,
         coachId: coachId,
-        status: 'ACTIVE'
+        status: UserStatus.ACTIVE
       },
       select: {
         id: true,

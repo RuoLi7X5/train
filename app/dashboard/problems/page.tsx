@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button, Label } from '@/components/ui'
 import { BookOpen, Upload, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { applyMove, cloneBoard, createEmptyBoard, type BoardState, type StoneColor, type BoardPoint } from '@/lib/go'
+import { useToast } from '@/components/Toast'
 
 type Problem = {
   id: number
@@ -19,6 +20,7 @@ type PlacementMode = 'BLACK_ONLY' | 'WHITE_ONLY' | 'ALTERNATE'
 type FirstPlayer = 'BLACK' | 'WHITE'
 
 export default function ProblemsPage() {
+  const toast = useToast()
   const [problems, setProblems] = useState<Problem[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -375,10 +377,10 @@ export default function ProblemsPage() {
         if (type === 'problem') setImageUrl(data.url)
         else setAnswerImageUrl(data.url)
       } else {
-        alert('图片上传失败')
+        toast.showError('图片上传失败')
       }
     } catch (error) {
-      alert('图片上传出错')
+      toast.showError('图片上传出错')
     } finally {
       setUploading(false)
     }
@@ -390,7 +392,7 @@ export default function ProblemsPage() {
 
     try {
       if (pushToStudents && !pushDueAt) {
-        alert('请设置推送截止时间')
+        toast.showWarning('请设置推送截止时间')
         setSubmitting(false)
         return
       }
@@ -427,13 +429,13 @@ export default function ProblemsPage() {
         setTrialMoves([])
         setSetupBoard(createEmptyBoard(boardSize))
         fetchProblems()
-        alert('发布成功！题目将按设定时间对学生可见。')
+        toast.showSuccess('发布成功！题目将按设定时间对学生可见。')
       } else {
         const data = await res.json()
-        alert(data.message || '发布失败')
+        toast.showError(data.message || '发布失败')
       }
     } catch (error) {
-      alert('发布失败')
+        toast.showError('发布失败')
     } finally {
       setSubmitting(false)
     }

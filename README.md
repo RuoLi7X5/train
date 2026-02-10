@@ -19,6 +19,15 @@
 - **数据库**: PostgreSQL (Supabase) + Prisma
 - **部署**: Cloudflare Pages
 
+## 📚 项目文档
+
+完整的项目文档和开发指南请查看 [docs 文件夹](./docs/)：
+
+- 📍 [项目路线图](./docs/ROADMAP.md) - 了解项目规划和开发进度
+- 📘 [快速参考](./docs/QUICK_REFERENCE.md) - 常用工具和代码示例 ⭐
+- 🛠️ [优化总结](./docs/OPTIMIZATION_SUMMARY.md) - 最新优化记录
+- 📖 [API 统一指南](./docs/API_UNIFICATION_GUIDE.md) - API 开发规范
+
 ## 部署说明
 
 本项目已配置为适配 Cloudflare Pages (Edge Runtime)。

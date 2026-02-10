@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui'
 import { CheckCircle, XCircle, Clock, AlertCircle, Share2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { applyMove, createEmptyBoard, type BoardPoint, type BoardState, type StoneColor } from '@/lib/go'
+import { useToast } from '@/components/Toast'
 
 type Submission = {
   id: number
@@ -48,6 +49,7 @@ export default function SubmissionHistory({
   boardData?: BoardData | null
   firstPlayer?: FirstPlayer | null
 }) {
+  const toast = useToast()
   const [sharingId, setSharingId] = useState<number | null>(null)
   const [trialOpen, setTrialOpen] = useState(false)
   const [trialBoard, setTrialBoard] = useState<BoardState>(() => toBoardState(boardData))
@@ -158,14 +160,14 @@ export default function SubmissionHistory({
       })
 
       if (res.ok) {
-        alert('分享成功！')
+        toast.showError('分享成功！')
         // Ideally reload comments, but page reload is simple
         window.location.reload()
       } else {
-        alert('分享失败')
+        toast.showError('分享失败')
       }
     } catch (error) {
-      alert('分享出错')
+      toast.showError('分享出错')
     } finally {
       setSharingId(null)
     }

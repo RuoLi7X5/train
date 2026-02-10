@@ -36,14 +36,15 @@ export async function PATCH(
     const submission = await prisma.submission.update({
       where: { id: parseInt(id) },
       data: {
-        status,
-        feedback,
+        status: status || 'PENDING',
+        feedback: feedback || null,
         gradedAt: new Date(),
         gradedById: session.user.id
-      } as any,
+      },
     })
     return NextResponse.json(submission)
   } catch (error) {
+    console.error('Update submission failed:', error)
     return NextResponse.json({ message: 'Update failed' }, { status: 500 })
   }
 }
