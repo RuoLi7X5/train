@@ -18,6 +18,7 @@ type Problem = {
 
 type PlacementMode = 'BLACK_ONLY' | 'WHITE_ONLY' | 'ALTERNATE'
 type FirstPlayer = 'BLACK' | 'WHITE'
+type Visibility = 'PRIVATE' | 'STUDENTS' | 'COMMUNITY'
 
 export default function ProblemsPage() {
   const toast = useToast()
@@ -38,6 +39,8 @@ export default function ProblemsPage() {
   const [answerImageUrl, setAnswerImageUrl] = useState('')
   const [answerReleaseHours, setAnswerReleaseHours] = useState(24)
 
+  // Visibility & Push settings
+  const [visibility, setVisibility] = useState<Visibility>('STUDENTS')
   const [pushToStudents, setPushToStudents] = useState(false)
   const [pushDueAt, setPushDueAt] = useState('')
   const boardSize = 19
@@ -407,7 +410,8 @@ export default function ProblemsPage() {
           answerContent,
           answerImageUrl,
           answerReleaseHours,
-          pushToStudents,
+          visibility,
+          pushToStudents: visibility === 'STUDENTS' ? pushToStudents : false,
           pushDueAt: pushDueAt ? new Date(pushDueAt).toISOString() : undefined,
           boardData,
           placementMode,
@@ -624,26 +628,52 @@ export default function ProblemsPage() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-gray-200 space-y-3">
-                <h4 className="font-medium text-gray-700">推送给学生</h4>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={pushToStudents}
-                    onChange={(e) => setPushToStudents(e.target.checked)}
-                  />
-                  推送到每日打卡
-                </label>
-                {pushToStudents && (
-                  <div className="space-y-2">
-                    <Label htmlFor="pushDueAt">推送截止时间</Label>
-                    <Input
-                      id="pushDueAt"
-                      type="datetime-local"
-                      value={pushDueAt}
-                      onChange={(e) => setPushDueAt(e.target.value)}
-                      required
-                    />
+              <div className="pt-4 border-t border-gray-200 space-y-4">
+                {/* Visibility 选择器 */}
+                <div className="space-y-2">
+                  <Label htmlFor="visibility" className="text-base font-medium text-gray-900">题目可见范围</Label>
+                  <select
+                    id="visibility"
+                    value={visibility}
+                    onChange={(e) => setVisibility(e.target.value as Visibility)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="PRIVATE">私有（仅自己可见，草稿）</option>
+                    <option value="STUDENTS">学生可见（仅自己的学生可见）</option>
+                    <option value="COMMUNITY">公开（所有人可见，发布到社区）</option>
+                  </select>
+                  <p className="text-xs text-gray-500">
+                    {visibility === 'PRIVATE' && '💡 草稿模式，仅您自己可见，可用于准备题目'}
+                    {visibility === 'STUDENTS' && '👥 仅您名下的学生可以看到此题目'}
+                    {visibility === 'COMMUNITY' && '🌍 题目将发布到公共社区，所有用户都可以看到和练习'}
+                  </p>
+                </div>
+
+                {/* 推送选项（仅当 visibility 为 STUDENTS 时显示） */}
+                {visibility === 'STUDENTS' && (
+                  <div className="space-y-3 pl-4 border-l-2 border-blue-200">
+                    <h4 className="font-medium text-gray-700">推送设置</h4>
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={pushToStudents}
+                        onChange={(e) => setPushToStudents(e.target.checked)}
+                      />
+                      推送到学生的每日打卡任务
+                    </label>
+                    {pushToStudents && (
+                      <div className="space-y-2">
+                        <Label htmlFor="pushDueAt">推送截止时间</Label>
+                        <Input
+                          id="pushDueAt"
+                          type="datetime-local"
+                          value={pushDueAt}
+                          onChange={(e) => setPushDueAt(e.target.value)}
+                          required
+                        />
+                        <p className="text-xs text-gray-500">学生需要在此时间前完成打卡</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

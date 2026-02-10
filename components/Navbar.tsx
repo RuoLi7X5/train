@@ -1,10 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { GraduationCap, LogOut, User, LayoutDashboard } from 'lucide-react'
+import { GraduationCap, LogOut, User, LayoutDashboard, Eye, Settings } from 'lucide-react'
 import { logoutAction } from '@/app/actions'
 
 export default function Navbar({ user }: { user: any }) {
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  
   const handleLogout = async () => {
     await logoutAction()
   }
@@ -38,20 +41,58 @@ export default function Navbar({ user }: { user: any }) {
             </Link>
           )}
 
-          <Link href="/profile" className="flex items-center gap-2 text-sm text-gray-600 hover:bg-gray-100 px-2 py-1 rounded-md transition-colors">
-            <User className="w-4 h-4" />
-            <div className="flex flex-col items-end leading-tight">
-              <span className="font-medium">{user?.displayName || user?.username}</span>
-              {user?.class && <span className="text-xs text-blue-600 bg-blue-50 px-1.5 rounded">{user.class.name}</span>}
-            </div>
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-            title="退出登录"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+          {/* User Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:bg-gray-100 px-2 py-1 rounded-md transition-colors"
+            >
+              <User className="w-4 h-4" />
+              <div className="flex flex-col items-end leading-tight">
+                <span className="font-medium">{user?.displayName || user?.username}</span>
+                {user?.class && <span className="text-xs text-blue-600 bg-blue-50 px-1.5 rounded">{user.class.name}</span>}
+              </div>
+            </button>
+
+            {/* Dropdown Menu */}
+            {showUserMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setShowUserMenu(false)}
+                />
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                  <Link
+                    href={`/u/${user?.id}`}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <Eye className="w-4 h-4" />
+                    我的主页
+                  </Link>
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <Settings className="w-4 h-4" />
+                    个人设置
+                  </Link>
+                  <div className="border-t border-gray-200 my-1" />
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false)
+                      handleLogout()
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    退出登录
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>

@@ -40,6 +40,12 @@ enum FirstPlayer {
   WHITE
 }
 
+enum Visibility {
+  PRIVATE    // 仅自己可见（草稿）
+  STUDENTS   // 仅绑定学生可见（当前每日一题模式）
+  COMMUNITY  // 公共社区/题库（所有人可见）
+}
+
 model Class {
   id        Int      @id @default(autoincrement())
   name      String   
@@ -105,6 +111,9 @@ model Problem {
   placementMode PlacementMode?
   firstPlayer   FirstPlayer?
 
+  // Phase 2: 受众选择
+  visibility    Visibility   @default(STUDENTS) // 题目可见性：私有/学生/社区
+
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   
@@ -124,6 +133,7 @@ model Problem {
   @@index([authorId])
   @@index([publishAt])
   @@index([date])
+  @@index([visibility])
 }
 
 model Submission {

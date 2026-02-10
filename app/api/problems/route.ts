@@ -22,24 +22,38 @@ export async function GET() {
         ]
       }
 
+      // 学生可以看到：
+      // 1. 自己教练发布的 visibility=STUDENTS 的题目
+      // 2. 所有 visibility=COMMUNITY 的题目
+      // 3. 系统题目（authorId=null，兼容旧数据）
       if (session.user.coachId) {
         where.AND = [
           timeClause,
           {
             OR: [
-              { authorId: session.user.coachId },
-              { authorId: null }
+              { authorId: session.user.coachId, visibility: 'STUDENTS' },
+              { visibility: 'COMMUNITY' },
+              { authorId: null } // 兼容旧数据
             ]
           }
         ]
       } else {
         where.AND = [
           timeClause,
-          { authorId: null }
+          {
+            OR: [
+              { visibility: 'COMMUNITY' },
+              { authorId: null } // 兼容旧数据
+            ]
+          }
         ]
       }
     } else if (session.user.role === 'COACH') {
+      // 教练可以看到自己创建的所有题目（包括私有草稿）
       where.authorId = session.user.id
+    } else if (session.user.role === 'SUPER_ADMIN') {
+      // 超级管理员可以看到所有题目
+      // where 保持为空对象
     }
 
     const problems = await prisma.problem.findMany({
@@ -65,11 +79,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { publishAt, content, imageUrl, answerContent, answerImageUrl, answerReleaseHours, pushToStudents, pushDueAt, boardData, placementMode, firstPlayer, answerMoves } = await request.json()
+    const { publishAt, content, imageUrl, answerContent, answerImageUrl, answerReleaseHours, visibility, pushToStudents, pushDueAt, boardData, placementMode, firstPlayer, answerMoves } = await request.json()
 
     if (!publishAt || !content) {
       return NextResponse.json({ message: '发布时间和内容必填' }, { status: 400 })
     }
+
+    // 验证 visibility 参数
+    const validVisibility = ['PRIVATE', 'STUDENTS', 'COMMUNITY'].includes(visibility) ? visibility : 'STUDENTS'
 
     const publishDate = new Date(publishAt)
     if (Number.isNaN(publishDate.getTime())) {
@@ -106,6 +123,7 @@ export async function POST(request: Request) {
         answerImage: answerImageUrl || null,
         answerReleaseDate: releaseDate,
         authorId: session.user.id,
+        visibility: validVisibility,
         boardData: boardData || null,
         placementMode: placementMode || null,
         firstPlayer: firstPlayer || null,
@@ -114,7 +132,8 @@ export async function POST(request: Request) {
     })
 
     let pushedCount = 0
-    if (pushToStudents) {
+    // 只有 visibility 为 STUDENTS 时才允许推送
+    if (pushToStudents && validVisibility === 'STUDENTS') {
       if (!pushDueAt) {
         return NextResponse.json({ message: '推送时必须设置截止时间' }, { status: 400 })
       }
